@@ -8,18 +8,12 @@
 // ...where each test result is on its own line.  If multiple tests
 // have the same name, then only the last test is recorded.
 
+use std::collections::HashMap;
 use std::io::{BufferedReader, RefReader, IoResult, IoError, OtherIoError};
 use std::io::pipe::PipeStream;
 use std::io::process::{Command, Process, ExitStatus, ExitSignal,
                        ProcessExit};
-use std::collections::HashMap;
-
-struct BuilderState<A>(A);
-
-struct InitialState;
-struct EnvDone;
-struct BuildDone;
-struct TestDone;
+use std::path::posix::Path;
 
 fn spawn_with_timeout(c: &Command, timeout: Option<u64>) -> IoResult<Process> {
     match c.spawn() {
@@ -41,7 +35,7 @@ fn run_command<A>(c: &Command, timeout: Option<u64>, on_success: A) -> IoResult<
     match spawn_with_timeout(c, timeout) {
         Ok(mut p) => {
             match p.wait() {
-                Ok(mut res) => res.if_ok(on_success),
+                Ok(res) => res.if_ok(on_success),
                 Err(e) => Err(e)
             }
         },
@@ -74,27 +68,25 @@ impl ErrorSimplifier for ProcessExit {
 }
 
 trait EnvSetup {
-    fn timeout(&self) -> Option<u64>;
+    fn env_timeout(&self) -> Option<u64>;
 
-    fn command(&self) -> Command;
+    fn env_command(&self) -> Command;
 
     /// Gets everything in order for testing to be performed.
     /// After calling this, it is assumed that we are ready
     /// to call make
-    fn setup_env(&self) -> IoResult<BuilderState<EnvDone>> {
-        run_command(&self.command(), self.timeout(),
-                    BuilderState(EnvDone))
+    fn setup_env(&self) -> IoResult<()> {
+        run_command(&self.env_command(), self.env_timeout(), ())
     }
 }
 
 trait BuildSetup {
-    fn timeout(&self) -> Option<u64>;
+    fn build_timeout(&self) -> Option<u64>;
 
-    fn command(&self) -> Command;
+    fn build_command(&self) -> Command;
     
-    fn do_build(&self) -> IoResult<BuilderState<BuildDone>> {
-        run_command(&self.command(), self.timeout(),
-                    BuilderState(BuildDone))
+    fn do_build(&self) -> IoResult<()> { 
+        run_command(&self.build_command(), self.build_timeout(), ())
     }
 }
 
@@ -108,8 +100,8 @@ struct ProcessReader {
 }
 
 impl ProcessReader {
-    fn new(cmd: &Command) -> IoResult<ProcessReader> {
-        cmd.spawn().map(|p| ProcessReader { p: p })
+    fn new(cmd: &Command, timeout: Option<u64>) -> IoResult<ProcessReader> {
+        spawn_with_timeout(cmd, timeout).map(|p| ProcessReader { p: p })
     }
 
     fn output_reader<'a>(&'a mut self) -> BufferedReader<RefReader<'a, PipeStream>> {
@@ -121,35 +113,37 @@ impl ProcessReader {
     }
 }
 
-trait Tester {
-    fn parse_test_result(line: &str) -> IoResult<TestResult> {
-        match line {
-            "PASS" => Ok(Pass),
-            "FAIL" => Ok(Fail),
-            _ => Err(
-                IoError {
-                    kind: OtherIoError,
-                    desc: "Malformed test result",
-                    detail: Some(line.to_string())
-                })
-        }
-    }
-
-    fn parse_line(line: &str) -> IoResult<(String, TestResult)> {
-        let results: Vec<&str> = line.split_str(":").collect();
-        if results.len() == 2 {
-            Tester::parse_test_result(results[1]).map(|res| {
-                (results[0].to_string(), res)
+fn parse_test_result(line: &str) -> IoResult<TestResult> {
+    match line {
+        "PASS" => Ok(Pass),
+        "FAIL" => Ok(Fail),
+        _ => Err(
+            IoError {
+                kind: OtherIoError,
+                desc: "Malformed test result",
+                detail: Some(line.to_string())
             })
-        } else {
-            Err(
-                IoError {
-                    kind: OtherIoError,
-                    desc: "Malformed test string",
-                    detail: Some(line.to_string())
-                })
-        }
     }
+}
+
+fn parse_line(line: &str) -> IoResult<(String, TestResult)> {
+    let results: Vec<&str> = line.split_str(":").collect();
+    if results.len() == 2 {
+        parse_test_result(results[1]).map(|res| {
+            (results[0].to_string(), res)
+        })
+    } else {
+        Err(
+            IoError {
+                kind: OtherIoError,
+                desc: "Malformed test string",
+                detail: Some(line.to_string())
+            })
+    }
+}
+
+trait Tester {
+    fn test_timeout(&self) -> Option<u64>;
 
     fn test_command(&self) -> Command;
 
@@ -157,13 +151,13 @@ trait Tester {
         // TODO: without do syntax this becomes nightmarish in
         // functional style, and I had issues with closures capturing
         // too much
-        match ProcessReader::new(&self.test_command()) {
+        match ProcessReader::new(&self.test_command(), self.test_timeout()) {
             Ok(mut reader) => {
                 let mut map = HashMap::new();
                 for op_line in reader.output_reader().lines() {
                     match op_line {
                         Ok(line) => {
-                            match Tester::parse_line(line.as_slice()) {
+                            match parse_line(line.as_slice()) {
                                 Ok((k, v)) => {
                                     map.insert(k, v);
                                 }
@@ -182,6 +176,41 @@ trait Tester {
 }
 
 struct TestingRequest {
-    dir: String, // directory where the build is to be performed
-    makefile_loc: String // where the makefile is located
+    dir: Path, // directory where the build is to be performed
+    makefile_loc: Path // where the makefile is located
+}
+
+impl TestingRequest {
+    fn make_with_arg<A : ToCStr>(&self, arg: A) -> Command {
+        let mut c = Command::new("make");
+        c.arg(arg).cwd(&self.dir);
+        c
+    }
+}
+
+impl EnvSetup for TestingRequest {
+    fn env_timeout(&self) -> Option<u64> { None }
+
+    fn env_command(&self) -> Command {
+        let mut c = Command::new("cp");
+        c.arg(self.makefile_loc.as_str().unwrap());
+        c.arg(self.dir.as_str().unwrap());
+        c
+    }
+}
+
+impl BuildSetup for TestingRequest {
+    fn build_timeout(&self) -> Option<u64> { None }
+
+    fn build_command(&self) -> Command {
+        self.make_with_arg("build")
+    }
+}
+
+impl Tester for TestingRequest {
+    fn test_timeout(&self) -> Option<u64> { None }
+
+    fn test_command(&self) -> Command {
+        self.make_with_arg("test")
+    }
 }
