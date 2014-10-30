@@ -10,49 +10,93 @@
 
 use std::io::{BufferedReader, RefReader, IoResult, IoError, OtherIoError};
 use std::io::pipe::PipeStream;
-use std::io::process::{Command, Process, ExitStatus, ExitSignal};
+use std::io::process::{Command, Process, ExitStatus, ExitSignal,
+                       ProcessExit};
 use std::collections::HashMap;
 
-/// Peforms builds and testing via abstract requests.
-trait Builder<A : Tester> {
+struct BuilderState<A>(A);
+
+struct InitialState;
+struct EnvDone;
+struct BuildDone;
+struct TestDone;
+
+fn spawn_with_timeout(c: &Command, timeout: Option<u64>) -> IoResult<Process> {
+    match c.spawn() {
+        Ok(mut p) => {
+            p.set_timeout(timeout);
+            Ok(p)
+        },
+        Err(e) => Err(e)
+    }
+}
+
+/// Runs the given command with the given timeout, ignoring the output.
+/// If it returns non-zero, then it's a failure, as with a signal.
+/// Takes what it should return on success.
+fn run_command<A>(c: &Command, timeout: Option<u64>, on_success: A) -> IoResult<A> {
+    // would like to use `and_then` here, but we get problems with capturing
+    // on_success, seemingly because the compiler cannot enforce that
+    // the closure passed to `and_then` only calls it once
+    match spawn_with_timeout(c, timeout) {
+        Ok(mut p) => {
+            match p.wait() {
+                Ok(mut res) => res.if_ok(on_success),
+                Err(e) => Err(e)
+            }
+        },
+        Err(e) => Err(e)
+    }
+}
+
+trait ErrorSimplifier {
+    fn if_ok<A>(&self, ret_this: A) -> IoResult<A>;
+}
+
+impl ErrorSimplifier for ProcessExit {
+    fn if_ok<A>(&self, ret_this: A) -> IoResult<A> {
+        match *self {
+            ExitStatus(0) => Ok(ret_this),
+            ExitStatus(x) => Err(
+                IoError {
+                    kind: OtherIoError,
+                    desc: "Non-zero exit code",
+                    detail: Some(x.to_string())
+                }),
+            ExitSignal(x) => Err(
+                IoError {
+                    kind: OtherIoError,
+                    desc: "Exit signal",
+                    detail: Some(x.to_string())
+                })
+        }
+    }
+}
+
+trait EnvSetup {
+    fn timeout(&self) -> Option<u64>;
+
+    fn command(&self) -> Command;
+
     /// Gets everything in order for testing to be performed.
     /// After calling this, it is assumed that we are ready
     /// to call make
-    fn setup_env(&self);
-
-    /// Makes a tester.  This should be the only way
-    /// to make a tester.  Avoids situations where we
-    /// tried to call `make test` without a successful
-    /// `make build`
-    fn make_tester(&self) -> A;
-
-    fn build_timeout(&self) -> u64;
-
-    fn test_timeout(&self) -> u64;
-
-    /// runs make build
-    fn do_build(&self) -> IoResult<A> {
-        Command::new("make").arg("build")
-            .spawn().and_then(|mut process| {
-                process.set_timeout(Some(self.build_timeout()));
-                process.wait().and_then(|res| match res {
-                    ExitStatus(0) => Ok(self.make_tester()),
-                    ExitStatus(x) => Err(
-                        IoError {
-                            kind: OtherIoError,
-                            desc: "Non-zero exit code",
-                            detail: Some(x.to_string())
-                        }),
-                    ExitSignal(x) => Err(
-                        IoError {
-                            kind: OtherIoError,
-                            desc: "Exit signal",
-                            detail: Some(x.to_string())
-                        })
-                })
-            })
+    fn setup_env(&self) -> IoResult<BuilderState<EnvDone>> {
+        run_command(&self.command(), self.timeout(),
+                    BuilderState(EnvDone))
     }
-} // trait Builder
+}
+
+trait BuildSetup {
+    fn timeout(&self) -> Option<u64>;
+
+    fn command(&self) -> Command;
+    
+    fn do_build(&self) -> IoResult<BuilderState<BuildDone>> {
+        run_command(&self.command(), self.timeout(),
+                    BuilderState(BuildDone))
+    }
+}
 
 enum TestResult {
     Pass,
@@ -107,8 +151,13 @@ trait Tester {
         }
     }
 
+    fn test_command(&self) -> Command;
+
     fn do_testing(&self) -> IoResult<HashMap<String, TestResult>> {
-        match ProcessReader::new(&*Command::new("make").arg("test")) {
+        // TODO: without do syntax this becomes nightmarish in
+        // functional style, and I had issues with closures capturing
+        // too much
+        match ProcessReader::new(&self.test_command()) {
             Ok(mut reader) => {
                 let mut map = HashMap::new();
                 for op_line in reader.output_reader().lines() {
@@ -132,12 +181,7 @@ trait Tester {
     }
 }
 
-/// Encapsulates a request to perform a build and begin test execution.
-/// In the future, this may include information for spinning up Docker
-/// and pulling from GitHub, though for the moment this is just a directory
-/// to go to.
-struct BuildRequest {
+struct TestingRequest {
     dir: String, // directory where the build is to be performed
     makefile_loc: String // where the makefile is located
 }
-
