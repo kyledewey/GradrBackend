@@ -1,5 +1,6 @@
 [package]
 
-name = "gradr-backend"
+name = "gradr_backend"
 version = "0.0.1"
 authors = ["Kyle Dewey <kyledewey@cs.ucsb.edu>"]
+

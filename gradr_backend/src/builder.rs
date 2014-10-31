@@ -13,7 +13,6 @@ use std::io::{BufferedReader, RefReader, IoResult, IoError, OtherIoError};
 use std::io::pipe::PipeStream;
 use std::io::process::{Command, Process, ExitStatus, ExitSignal,
                        ProcessExit};
-use std::path::posix::Path;
 
 fn spawn_with_timeout(c: &Command, timeout: Option<u64>) -> IoResult<Process> {
     match c.spawn() {
@@ -28,7 +27,7 @@ fn spawn_with_timeout(c: &Command, timeout: Option<u64>) -> IoResult<Process> {
 /// Runs the given command with the given timeout, ignoring the output.
 /// If it returns non-zero, then it's a failure, as with a signal.
 /// Takes what it should return on success.
-fn run_command<A>(c: &Command, timeout: Option<u64>, on_success: A) -> IoResult<A> {
+pub fn run_command<A>(c: &Command, timeout: Option<u64>, on_success: A) -> IoResult<A> {
     // would like to use `and_then` here, but we get problems with capturing
     // on_success, seemingly because the compiler cannot enforce that
     // the closure passed to `and_then` only calls it once
@@ -67,7 +66,7 @@ impl ErrorSimplifier for ProcessExit {
     }
 }
 
-trait EnvSetup {
+pub trait EnvSetup {
     fn env_timeout(&self) -> Option<u64>;
 
     fn env_command(&self) -> Command;
@@ -80,7 +79,7 @@ trait EnvSetup {
     }
 }
 
-trait BuildSetup {
+pub trait BuildSetup {
     fn build_timeout(&self) -> Option<u64>;
 
     fn build_command(&self) -> Command;
@@ -90,7 +89,7 @@ trait BuildSetup {
     }
 }
 
-enum TestResult {
+pub enum TestResult {
     Pass,
     Fail
 }
@@ -142,7 +141,7 @@ fn parse_line(line: &str) -> IoResult<(String, TestResult)> {
     }
 }
 
-trait Tester {
+pub trait Tester {
     fn test_timeout(&self) -> Option<u64>;
 
     fn test_command(&self) -> Command;
@@ -175,42 +174,18 @@ trait Tester {
     }
 }
 
-struct TestingRequest {
-    dir: Path, // directory where the build is to be performed
-    makefile_loc: Path // where the makefile is located
-}
+#[cfg(test)]
+mod tests {
+    use std::io::process::Command;
+    use super::run_command;
 
-impl TestingRequest {
-    fn make_with_arg<A : ToCStr>(&self, arg: A) -> Command {
-        let mut c = Command::new("make");
-        c.arg(arg).cwd(&self.dir);
-        c
+    #[test]
+    fn echo_ok() {
+        assert!(run_command(&*Command::new("echo").arg("foobar"), None, ()).is_ok());
     }
-}
-
-impl EnvSetup for TestingRequest {
-    fn env_timeout(&self) -> Option<u64> { None }
-
-    fn env_command(&self) -> Command {
-        let mut c = Command::new("cp");
-        c.arg(self.makefile_loc.as_str().unwrap());
-        c.arg(self.dir.as_str().unwrap());
-        c
-    }
-}
-
-impl BuildSetup for TestingRequest {
-    fn build_timeout(&self) -> Option<u64> { None }
-
-    fn build_command(&self) -> Command {
-        self.make_with_arg("build")
-    }
-}
-
-impl Tester for TestingRequest {
-    fn test_timeout(&self) -> Option<u64> { None }
-
-    fn test_command(&self) -> Command {
-        self.make_with_arg("test")
+    
+    #[test]
+    fn false_ok() {
+        assert!(run_command(&Command::new("false"), None, ()).is_err());
     }
 }

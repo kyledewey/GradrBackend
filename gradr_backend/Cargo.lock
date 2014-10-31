@@ -1,4 +1,4 @@
 [root]
-name = "gradr-backend"
+name = "gradr_backend"
 version = "0.0.1"
 
