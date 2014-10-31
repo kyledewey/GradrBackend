@@ -176,10 +176,9 @@ pub trait Tester {
 }
 
 #[cfg(test)]
-mod tests {
+mod process_tests {
     use std::io::process::Command;
-    use super::{run_command, ProcessReader, parse_test_result,
-                Pass, Fail, parse_line};
+    use super::{run_command, ProcessReader};
 
     #[test]
     fn echo_ok() {
@@ -217,6 +216,11 @@ mod tests {
         assert_eq!(lines[0].as_slice(), "foo");
         assert_eq!(lines[1].as_slice(), "bar");
     }
+}
+
+#[cfg(test)]
+mod parse_tests {
+    use super::{parse_test_result, Pass, Fail, parse_line};
 
     #[test]
     fn parse_test_pass() {
