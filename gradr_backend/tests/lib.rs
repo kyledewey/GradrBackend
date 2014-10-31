@@ -53,12 +53,15 @@ impl Tester for TestingRequest {
 }
 
 impl Drop for TestingRequest {
-    /// Automatically deletes the copied-over makefile on test end.
+    /// Automatically deletes the copied-over makefile on test end,
+    /// along with any applicable executables (namely `a.out`)
     #[allow(unused_must_use)]
     fn drop(&mut self) {
+        let dir = self.dir.as_str().unwrap();
         run_command(
-            &*Command::new("rm").arg(
-                format!("{}/makefile", self.dir.as_str().unwrap())),
+            &*Command::new("rm")
+                .arg(format!("{}/makefile", dir))
+                .arg(format!("{}/a.out", dir)),
             None,
             ());
     }
@@ -74,4 +77,11 @@ fn expected_compile_failure() {
     let r = req("compile_error");
     assert!(r.setup_env().is_ok());
     assert!(r.do_build().is_err());
+}
+
+#[test]
+fn expected_compile_success() {
+    let r = req("compile_success");
+    assert!(r.setup_env().is_ok());
+    assert!(r.do_build().is_ok());
 }
