@@ -1,6 +1,7 @@
 extern crate gradr_backend;
 
-use gradr_backend::builder::{EnvSetup, BuildSetup, Tester, run_command};
+use gradr_backend::builder::{EnvSetup, BuildSetup, Tester, run_command,
+                             Pass, Fail};
 
 use std::io::process::{Command};
 use std::path::posix::Path;
@@ -20,7 +21,7 @@ fn req(name: &str) -> TestingRequest {
 impl TestingRequest {
     fn make_with_arg<A : ToCStr>(&self, arg: A) -> Command {
         let mut c = Command::new("make");
-        c.arg(arg).cwd(&self.dir);
+        c.arg("-s").arg(arg).cwd(&self.dir);
         c
     }
 }
@@ -84,4 +85,35 @@ fn expected_compile_success() {
     let r = req("compile_success");
     assert!(r.setup_env().is_ok());
     assert!(r.do_build().is_ok());
+}
+
+#[test]
+fn testing_parsing_empty_success() {
+    let r = req("testing_parsing_empty_success");
+    assert!(r.setup_env().is_ok());
+    assert!(r.do_build().is_ok());
+    let res = r.do_testing();
+    println!("{}", res);
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap().len(), 0);
+}
+
+#[test]
+fn testing_parsing_nonempty_success() {
+    let r = req("testing_parsing_nonempty_success");
+    assert!(r.setup_env().is_ok());
+    assert!(r.do_build().is_ok());
+    let res = r.do_testing();
+    println!("{}", res);
+    assert!(res.is_ok());
+    let u = res.unwrap();
+    assert_eq!(u.len(), 2);
+
+    let t1 = u.find_equiv(&"test1".to_string());
+    assert!(t1.is_some());
+    assert_eq!(t1.unwrap(), &Pass);
+
+    let t2 = u.find_equiv(&"test2".to_string());
+    assert!(t2.is_some());
+    assert_eq!(t2.unwrap(), &Fail);
 }

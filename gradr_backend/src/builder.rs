@@ -157,7 +157,7 @@ pub trait Tester {
                 for op_line in reader.output_reader().lines() {
                     match op_line {
                         Ok(line) => {
-                            match parse_line(line.as_slice()) {
+                            match parse_line(line.as_slice().trim()) {
                                 Ok((k, v)) => {
                                     map.insert(k, v);
                                 }
