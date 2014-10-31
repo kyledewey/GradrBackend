@@ -177,7 +177,7 @@ pub trait Tester {
 #[cfg(test)]
 mod tests {
     use std::io::process::Command;
-    use super::run_command;
+    use super::{run_command, ProcessReader};
 
     #[test]
     fn echo_ok() {
@@ -188,4 +188,32 @@ mod tests {
     fn false_ok() {
         assert!(run_command(&Command::new("false"), None, ()).is_err());
     }
+
+    fn output_from_command(cmd: &Command) -> Vec<String> {
+        let pr = ProcessReader::new(cmd, None);
+        assert!(pr.is_ok());
+        pr.unwrap().output_reader().lines()
+            .map(|line| {
+                assert!(line.is_ok());
+                line.unwrap().as_slice().trim().to_string()
+            }).collect()
+    }
+            
+    #[test]
+    fn output_single_line_read() {
+        let lines = output_from_command(
+            &*Command::new("sh").arg("-c").arg("echo foobar"));
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].as_slice(), "foobar");
+    }
+
+    #[test]
+    fn output_multi_line_read() {
+        let lines = output_from_command(
+            &*Command::new("sh").arg("-c").arg("echo foo; echo bar"));
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].as_slice(), "foo");
+        assert_eq!(lines[1].as_slice(), "bar");
+    }
+
 }
