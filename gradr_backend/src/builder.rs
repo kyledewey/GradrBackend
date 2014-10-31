@@ -175,6 +175,30 @@ pub trait Tester {
     }
 }
 
+pub enum BuildResult {
+    SetupEnvFailure(IoError),
+    BuildFailure(IoError),
+    TestFailure(IoError),
+    TestSuccess(HashMap<String, TestResult>)
+}
+
+pub fn whole_build<A : EnvSetup + BuildSetup + Tester + Drop>(a: A) -> BuildResult {
+    match a.setup_env() {
+        Ok(_) => {
+            match a.do_build() {
+                Ok(_) => {
+                    match a.do_testing() {
+                        Ok(res) => TestSuccess(res),
+                        Err(e) => TestFailure(e)
+                    }
+                },
+                Err(e) => BuildFailure(e)
+            }
+        },
+        Err(e) => SetupEnvFailure(e)
+    }
+}
+
 #[cfg(test)]
 mod process_tests {
     use std::io::process::Command;
