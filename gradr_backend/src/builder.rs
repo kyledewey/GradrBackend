@@ -89,6 +89,7 @@ pub trait BuildSetup {
     }
 }
 
+#[deriving(Show, PartialEq)]
 pub enum TestResult {
     Pass,
     Fail
@@ -177,7 +178,8 @@ pub trait Tester {
 #[cfg(test)]
 mod tests {
     use std::io::process::Command;
-    use super::{run_command, ProcessReader};
+    use super::{run_command, ProcessReader, parse_test_result,
+                Pass, Fail, parse_line};
 
     #[test]
     fn echo_ok() {
@@ -216,4 +218,37 @@ mod tests {
         assert_eq!(lines[1].as_slice(), "bar");
     }
 
+    #[test]
+    fn parse_test_pass() {
+        let res = parse_test_result("PASS");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), Pass);
+    }
+
+    #[test]
+    fn parse_test_fail() {
+        let res = parse_test_result("FAIL");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), Fail);
+    }
+
+    #[test]
+    fn parse_test_bad_test() {
+        let res = parse_test_result("foobar");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn parse_valid_test_line() {
+        let res = parse_line("my test:PASS");
+        assert!(res.is_ok());
+        let (key, result) = res.unwrap();
+        assert_eq!(key.as_slice(), "my test");
+        assert_eq!(result, Pass);
+    }
+
+    #[test]
+    fn parse_invalid_test_line() {
+        assert!(parse_line("this:is:PASS").is_err());
+    }
 }
