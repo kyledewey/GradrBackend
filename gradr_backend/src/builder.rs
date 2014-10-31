@@ -127,9 +127,16 @@ pub enum BuildResult {
 }
 
 pub trait WholeBuildable {
+    // BEGIN FUNCTIONS TO IMPLEMENT
     fn env_timeout(&self) -> Option<u64>;
-
     fn env_command(&self) -> Command;
+
+    fn build_timeout(&self) -> Option<u64>;
+    fn build_command(&self) -> Command;
+
+    fn test_timeout(&self) -> Option<u64>;
+    fn test_command(&self) -> Command;
+    // END FUNCTIONS TO IMPLEMENT
 
     /// Gets everything in order for testing to be performed.
     /// After calling this, it is assumed that we are ready
@@ -137,18 +144,10 @@ pub trait WholeBuildable {
     fn setup_env(&self) -> IoResult<()> {
         run_command(&self.env_command(), self.env_timeout(), ())
     }
-
-    fn build_timeout(&self) -> Option<u64>;
-
-    fn build_command(&self) -> Command;
     
     fn do_build(&self) -> IoResult<()> { 
         run_command(&self.build_command(), self.build_timeout(), ())
     }
-
-    fn test_timeout(&self) -> Option<u64>;
-
-    fn test_command(&self) -> Command;
 
     fn do_testing(&self) -> IoResult<HashMap<String, TestResult>> {
         // TODO: without do syntax this becomes nightmarish in
