@@ -8,11 +8,16 @@
 // 3. Put test results into a database, given what
 //    build was pending
 
-/// Type A is the entry, type B is for test results
-pub trait Database<A, B> {
+use builder::BuildResult;
+
+/// Type A is some key
+pub trait Database<A> {
     fn add_pending(&mut self, entry: A);
 
-    fn get_pending(&mut self) -> A;
+    /// Optionally gets a pending build from the database.
+    /// If `Some` is returned, it will not be returned again.
+    /// If `None` is returned, it is expected that the caller will sleep.
+    fn get_pending<'a, A: 'a>(&mut self) -> Option<A>;
 
-    fn add_test_results(&mut self, entry: A, results: B);
+    fn add_test_results<'a>(&mut self, entry: &'a A, results: BuildResult);
 }

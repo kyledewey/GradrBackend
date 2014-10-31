@@ -8,14 +8,9 @@ pub trait NotificationSource<A> {
     fn get_notification(&mut self) -> A;
 }
 
-fn process_notification_event<A, B, C : NotificationSource<A>, D : Database<A, B>>(
-    source: &mut C, db: &mut D) {
-    db.add_pending(source.get_notification());
-}
-
-fn notification_event_loop<A, B, C : NotificationSource<A>, D : Database<A, B>>(
-    source: &mut C, db: &mut D) {
+pub fn notification_event_loop<A, B : NotificationSource<A>, C : Database<A>>(
+    source: &mut B, db: &mut C) {
     loop {
-        process_notification_event(source, db);
+        db.add_pending(source.get_notification());
     }
 }

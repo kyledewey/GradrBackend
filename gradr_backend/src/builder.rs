@@ -176,7 +176,7 @@ pub trait WholeBuildable {
         }
     }
 
-    fn whole_build(self) -> BuildResult {
+    fn whole_build(&self) -> BuildResult {
         match self.setup_env() {
             Ok(_) => {
                 match self.do_build() {
@@ -192,6 +192,10 @@ pub trait WholeBuildable {
             Err(e) => SetupEnvFailure(e)
         }
     }
+}
+
+pub trait ToWholeBuildable {
+    fn to_whole_buildable(&self) -> WholeBuildable;
 }
 
 #[cfg(test)]
