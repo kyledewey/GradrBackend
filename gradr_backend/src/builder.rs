@@ -66,29 +66,6 @@ impl ErrorSimplifier for ProcessExit {
     }
 }
 
-pub trait EnvSetup {
-    fn env_timeout(&self) -> Option<u64>;
-
-    fn env_command(&self) -> Command;
-
-    /// Gets everything in order for testing to be performed.
-    /// After calling this, it is assumed that we are ready
-    /// to call make
-    fn setup_env(&self) -> IoResult<()> {
-        run_command(&self.env_command(), self.env_timeout(), ())
-    }
-}
-
-pub trait BuildSetup {
-    fn build_timeout(&self) -> Option<u64>;
-
-    fn build_command(&self) -> Command;
-    
-    fn do_build(&self) -> IoResult<()> { 
-        run_command(&self.build_command(), self.build_timeout(), ())
-    }
-}
-
 #[deriving(Show, PartialEq)]
 pub enum TestResult {
     Pass,
@@ -142,7 +119,33 @@ fn parse_line(line: &str) -> IoResult<(String, TestResult)> {
     }
 }
 
-pub trait Tester {
+pub enum BuildResult {
+    SetupEnvFailure(IoError),
+    BuildFailure(IoError),
+    TestFailure(IoError),
+    TestSuccess(HashMap<String, TestResult>)
+}
+
+pub trait WholeBuildable {
+    fn env_timeout(&self) -> Option<u64>;
+
+    fn env_command(&self) -> Command;
+
+    /// Gets everything in order for testing to be performed.
+    /// After calling this, it is assumed that we are ready
+    /// to call make
+    fn setup_env(&self) -> IoResult<()> {
+        run_command(&self.env_command(), self.env_timeout(), ())
+    }
+
+    fn build_timeout(&self) -> Option<u64>;
+
+    fn build_command(&self) -> Command;
+    
+    fn do_build(&self) -> IoResult<()> { 
+        run_command(&self.build_command(), self.build_timeout(), ())
+    }
+
     fn test_timeout(&self) -> Option<u64>;
 
     fn test_command(&self) -> Command;
@@ -173,29 +176,22 @@ pub trait Tester {
             Err(s) => { return Err(s); }
         }
     }
-}
 
-pub enum BuildResult {
-    SetupEnvFailure(IoError),
-    BuildFailure(IoError),
-    TestFailure(IoError),
-    TestSuccess(HashMap<String, TestResult>)
-}
-
-pub fn whole_build<A : EnvSetup + BuildSetup + Tester + Drop>(a: A) -> BuildResult {
-    match a.setup_env() {
-        Ok(_) => {
-            match a.do_build() {
-                Ok(_) => {
-                    match a.do_testing() {
-                        Ok(res) => TestSuccess(res),
-                        Err(e) => TestFailure(e)
-                    }
-                },
-                Err(e) => BuildFailure(e)
-            }
-        },
-        Err(e) => SetupEnvFailure(e)
+    fn whole_build(self) -> BuildResult {
+        match self.setup_env() {
+            Ok(_) => {
+                match self.do_build() {
+                    Ok(_) => {
+                        match self.do_testing() {
+                            Ok(res) => TestSuccess(res),
+                            Err(e) => TestFailure(e)
+                        }
+                    },
+                    Err(e) => BuildFailure(e)
+                }
+            },
+            Err(e) => SetupEnvFailure(e)
+        }
     }
 }
 
@@ -278,5 +274,134 @@ mod parse_tests {
     #[test]
     fn parse_invalid_test_line() {
         assert!(parse_line("this:is:PASS").is_err());
+    }
+}
+
+#[cfg(test)]
+mod build_tests {
+    use std::io::process::Command;
+    use super::{run_command, TestSuccess, Pass, Fail, WholeBuildable};
+
+    struct TestingRequest {
+        dir: Path, // directory where the build is to be performed
+        makefile_loc: Path // where the makefile is located
+    }
+
+    fn req(name: &str) -> TestingRequest {
+        TestingRequest {
+            dir: Path::new(format!("test/{}", name)),
+            makefile_loc: Path::new("test/makefile")
+        }
+    }
+
+    impl TestingRequest {
+        fn make_with_arg<A : ToCStr>(&self, arg: A) -> Command {
+            let mut c = Command::new("make");
+            c.arg("-s").arg(arg).cwd(&self.dir);
+            c
+        }
+    }
+
+    impl Drop for TestingRequest {
+        /// Automatically deletes the copied-over makefile on test end,
+        /// along with any applicable executables (namely `a.out`)
+        #[allow(unused_must_use)]
+        fn drop(&mut self) {
+            let dir = self.dir.as_str().unwrap();
+            run_command(
+                &*Command::new("rm")
+                    .arg(format!("{}/makefile", dir))
+                    .arg(format!("{}/a.out", dir)),
+                None,
+                ());
+        }
+    }
+
+    impl WholeBuildable for TestingRequest {
+        fn env_timeout(&self) -> Option<u64> { None }
+
+        fn env_command(&self) -> Command {
+            let mut c = Command::new("cp");
+            c.arg(self.makefile_loc.as_str().unwrap());
+            c.arg(self.dir.as_str().unwrap());
+            c
+        }
+
+        fn build_timeout(&self) -> Option<u64> { None }
+
+        fn build_command(&self) -> Command {
+            self.make_with_arg("build")
+        }
+
+        fn test_timeout(&self) -> Option<u64> { None }
+
+        fn test_command(&self) -> Command {
+            self.make_with_arg("test")
+        }
+    }
+
+    #[test]
+    fn makefile_copy_ok() {
+        assert!(req("compile_error").setup_env().is_ok());
+    }
+
+    #[test]
+    fn expected_compile_failure() {
+        let r = req("compile_error");
+        assert!(r.setup_env().is_ok());
+        assert!(r.do_build().is_err());
+    }
+
+    #[test]
+    fn expected_compile_success() {
+        let r = req("compile_success");
+        assert!(r.setup_env().is_ok());
+        assert!(r.do_build().is_ok());
+    }
+
+    #[test]
+    fn testing_parsing_empty_success() {
+        let r = req("testing_parsing_empty_success");
+        assert!(r.setup_env().is_ok());
+        assert!(r.do_build().is_ok());
+        let res = r.do_testing();
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().len(), 0);
+    }
+
+    #[test]
+    fn testing_parsing_nonempty_success() {
+        let r = req("testing_parsing_nonempty_success");
+        assert!(r.setup_env().is_ok());
+        assert!(r.do_build().is_ok());
+        let res = r.do_testing();
+
+        assert!(res.is_ok());
+        let u = res.unwrap();
+        assert_eq!(u.len(), 2);
+
+        let t1 = u.find_equiv(&"test1".to_string());
+        assert!(t1.is_some());
+        assert_eq!(t1.unwrap(), &Pass);
+
+        let t2 = u.find_equiv(&"test2".to_string());
+        assert!(t2.is_some());
+        assert_eq!(t2.unwrap(), &Fail);
+    }
+
+    #[test]
+    fn test_whole_build() {
+        match req("test_whole_build").whole_build() {
+            TestSuccess(u) => {
+                let t1 = u.find_equiv(&"test1".to_string());
+                assert!(t1.is_some());
+                assert_eq!(t1.unwrap(), &Pass);
+                
+                let t2 = u.find_equiv(&"test2".to_string());
+                assert!(t2.is_some());
+                assert_eq!(t2.unwrap(), &Fail);
+            },
+            _ => { assert!(false); }
+        };
     }
 }
