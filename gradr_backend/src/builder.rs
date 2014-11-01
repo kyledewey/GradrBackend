@@ -15,31 +15,19 @@ use std::io::process::{Command, Process, ExitStatus, ExitSignal,
                        ProcessExit};
 
 fn spawn_with_timeout(c: &Command, timeout: Option<u64>) -> IoResult<Process> {
-    match c.spawn() {
-        Ok(mut p) => {
-            p.set_timeout(timeout);
-            Ok(p)
-        },
-        Err(e) => Err(e)
-    }
+    let mut p = try!(c.spawn());
+    p.set_timeout(timeout);
+    Ok(p)
 }
 
 /// Runs the given command with the given timeout, ignoring the output.
 /// If it returns non-zero, then it's a failure, as with a signal.
 /// Takes what it should return on success.
 pub fn run_command<A>(c: &Command, timeout: Option<u64>, on_success: A) -> IoResult<A> {
-    // would like to use `and_then` here, but we get problems with capturing
-    // on_success, seemingly because the compiler cannot enforce that
-    // the closure passed to `and_then` only calls it once
-    match spawn_with_timeout(c, timeout) {
-        Ok(mut p) => {
-            match p.wait() {
-                Ok(res) => res.if_ok(on_success),
-                Err(e) => Err(e)
-            }
-        },
-        Err(e) => Err(e)
-    }
+    (try!(
+        (try!(
+            spawn_with_timeout(c, timeout)))
+            .wait())).if_ok(on_success)
 }
 
 trait ErrorSimplifier {
@@ -150,33 +138,22 @@ pub trait WholeBuildable {
     }
 
     fn do_testing(&self) -> IoResult<HashMap<String, TestResult>> {
-        // TODO: without do syntax this becomes nightmarish in
-        // functional style, and I had issues with closures capturing
-        // too much
-        match ProcessReader::new(&self.test_command(), self.test_timeout()) {
-            Ok(mut reader) => {
-                let mut map = HashMap::new();
-                for op_line in reader.output_reader().lines() {
-                    match op_line {
-                        Ok(line) => {
-                            match parse_line(line.as_slice().trim()) {
-                                Ok((k, v)) => {
-                                    map.insert(k, v);
-                                }
-                                Err(s) => { return Err(s); }
-                            }
-                        }
-                        Err(s) => { return Err(s); }
-                    }
-                }
-                Ok(map)
-                
-            }
-            Err(s) => { return Err(s); }
+        let mut reader = 
+            try!(ProcessReader::new(&self.test_command(), self.test_timeout()));
+        let mut map = HashMap::new();
+        for op_line in reader.output_reader().lines() {
+            let (k, v) = try!(
+                parse_line(
+                    try!(op_line).as_slice().trim()));
+            map.insert(k, v);
         }
+
+        Ok(map)
     }
 
     fn whole_build(&self) -> BuildResult {
+        // Because we have different results for different kinds
+        // of failures, we cannot use `try!`
         match self.setup_env() {
             Ok(_) => {
                 match self.do_build() {
