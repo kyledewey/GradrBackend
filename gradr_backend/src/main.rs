@@ -8,7 +8,7 @@ use std::time::Duration;
 use gradr_backend::database::testing::TestDatabase;
 use gradr_backend::notification_listener::NotificationSource;
 use gradr_backend::notification_listener::testing::TestNotificationSource;
-use gradr_backend::worker::worker_loop;    
+use gradr_backend::worker::worker_loop_step;
 
 #[cfg(not(test))]
 fn main() {
@@ -19,11 +19,16 @@ fn main() {
     let c2 = db.clone();
 
     spawn(proc() {
-        TestNotificationSource::new(notification_recv).notification_event_loop(c1);
+        let source = TestNotificationSource::new(notification_recv);
+        loop {
+            source.notification_event_loop_step(&*c1);
+        }
     });
 
     spawn(proc() {
-        worker_loop(c2);
+        loop {
+            worker_loop_step(&*c2);
+        }
     });
 
     notification_sender.send("test/testing_parsing_nonempty_success".to_string());
