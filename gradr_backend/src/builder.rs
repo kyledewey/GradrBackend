@@ -325,12 +325,12 @@ pub mod testing {
 
 #[cfg(test)]
 mod build_tests {
-    use std::io::process::Command;
-    use super::{run_command, TestSuccess, Pass, Fail, WholeBuildable};
+    use super::{TestSuccess, Pass, Fail, WholeBuildable};
+    use super::testing::TestingRequest;
 
     fn req(name: &str) -> TestingRequest {
         TestingRequest::new(format!("test/{}", name),
-                            "test/makefile")
+                            "test/makefile".to_string())
     }
 
     #[test]

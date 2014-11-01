@@ -1,13 +1,22 @@
 extern crate gradr_backend;
 
+// TODO: there must be a better way to not import these for testing
+#[cfg(not(test))]
 use std::comm::sync_channel;
+#[cfg(not(test))]
 use std::io::timer;
+#[cfg(not(test))]
 use std::sync::Arc;
+#[cfg(not(test))]
 use std::time::Duration;
 
+#[cfg(not(test))]
 use gradr_backend::database::testing::TestDatabase;
+#[cfg(not(test))]
 use gradr_backend::notification_listener::NotificationSource;
+#[cfg(not(test))]
 use gradr_backend::notification_listener::testing::TestNotificationSource;
+#[cfg(not(test))]
 use gradr_backend::worker::worker_loop_step;
 
 #[cfg(not(test))]
