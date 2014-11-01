@@ -5,10 +5,17 @@ use database::Database;
 // a database which is polled upon later.
 
 pub trait NotificationSource<A> {
-    fn get_notification(&self) -> A;
+    fn get_notification(&self) -> Option<A>;
 
-    fn notification_event_loop_step<D : Database<A>>(&self, db: &D) {
-        db.add_pending(self.get_notification());
+    /// Returns true if processing should continue, else false
+    fn notification_event_loop_step<D : Database<A>>(&self, db: &D) -> bool {
+        match self.get_notification() {
+            Some(not) => {
+                db.add_pending(not);
+                true
+            },
+            None => false
+        }
     }
 }
 
@@ -29,8 +36,13 @@ pub mod testing {
     }
 
     impl NotificationSource<String> for TestNotificationSource {
-        fn get_notification(&self) -> String {
-            self.source.recv()
+        fn get_notification(&self) -> Option<String> {
+            let retval = self.source.recv();
+            if retval.as_slice() == "TERMINATE" {
+                None
+            } else {
+                Some(retval)
+            }
         }
     }
 }

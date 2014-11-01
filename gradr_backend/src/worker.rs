@@ -1,9 +1,6 @@
 // A worker thread.  Workers get items from the database,
 // and process them.
 
-use std::io::timer;
-use std::time::Duration;
-
 use builder::{WholeBuildable, ToWholeBuildable};
 use database::Database;
 
@@ -18,7 +15,7 @@ pub fn worker_loop_step<A : ToWholeBuildable<B>, B : WholeBuildable, C : Databas
             let res = a.to_whole_buildable().whole_build();
             db.add_test_results(a, res);
         },
-        None => timer::sleep(Duration::seconds(1))
+        None => ()
     }
 }
 
