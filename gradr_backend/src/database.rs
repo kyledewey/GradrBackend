@@ -17,7 +17,35 @@ pub trait Database<A> {
     /// Optionally gets a pending build from the database.
     /// If `Some` is returned, it will not be returned again.
     /// If `None` is returned, it is expected that the caller will sleep.
-    fn get_pending<'a, A: 'a>(&mut self) -> Option<A>;
+    fn get_pending(&mut self) -> Option<A>;
 
-    fn add_test_results<'a>(&mut self, entry: &'a A, results: BuildResult);
+    fn add_test_results(&mut self, entry: A, results: BuildResult);
+}
+
+mod testing {
+    use std::collections::HashMap;
+    use std::sync::mpsc_queue::Queue;
+
+    use builder::BuildResult;
+    use super::Database;
+
+    /// Simply a directory to a status.
+    struct TestDatabase {
+        pending: Queue<String>,
+        complete: HashMap<String, BuildResult>
+    }
+
+    impl Database<String> for TestDatabase {
+        fn add_pending(&mut self, entry: String) {
+            self.pending.push(entry);
+        }
+
+        fn get_pending(&mut self) -> Option<String> {
+            self.pending.casual_pop()
+        }
+        
+        fn add_test_results(&mut self, entry: String, results: BuildResult) {
+            self.complete.insert(entry, results);
+        }
+    }
 }
