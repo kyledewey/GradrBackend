@@ -171,8 +171,8 @@ pub trait WholeBuildable {
     }
 }
 
-pub trait ToWholeBuildable {
-    fn to_whole_buildable(&self) -> WholeBuildable;
+pub trait ToWholeBuildable<A : WholeBuildable> {
+    fn to_whole_buildable(&self) -> A;
 }
 
 #[cfg(test)]
@@ -257,24 +257,25 @@ mod parse_tests {
     }
 }
 
-#[cfg(test)]
-mod build_tests {
+pub mod testing {
     use std::io::process::Command;
+    use std::path::BytesContainer;
+
     use super::{run_command, TestSuccess, Pass, Fail, WholeBuildable};
 
-    struct TestingRequest {
+    pub struct TestingRequest {
         dir: Path, // directory where the build is to be performed
         makefile_loc: Path // where the makefile is located
     }
 
-    fn req(name: &str) -> TestingRequest {
-        TestingRequest {
-            dir: Path::new(format!("test/{}", name)),
-            makefile_loc: Path::new("test/makefile")
-        }
-    }
-
     impl TestingRequest {
+        pub fn new<A : BytesContainer>(dir: A, makefile_loc: A) -> TestingRequest {
+            TestingRequest {
+                dir: Path::new(dir),
+                makefile_loc: Path::new(makefile_loc)
+            }
+        }
+
         fn make_with_arg<A : ToCStr>(&self, arg: A) -> Command {
             let mut c = Command::new("make");
             c.arg("-s").arg(arg).cwd(&self.dir);
@@ -318,6 +319,17 @@ mod build_tests {
         fn test_command(&self) -> Command {
             self.make_with_arg("test")
         }
+    }
+}
+
+#[cfg(test)]
+mod build_tests {
+    use std::io::process::Command;
+    use super::{run_command, TestSuccess, Pass, Fail, WholeBuildable};
+
+    fn req(name: &str) -> TestingRequest {
+        TestingRequest::new(format!("test/{}", name),
+                            "test/makefile")
     }
 
     #[test]

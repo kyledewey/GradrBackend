@@ -5,12 +5,34 @@ use database::Database;
 // a database which is polled upon later.
 
 pub trait NotificationSource<A> {
-    fn get_notification(&mut self) -> A;
+    fn get_notification(&self) -> A;
+
+    fn notification_event_loop<'a, D : Database<A>>(&self, db: &'a mut D) {
+        loop {
+            db.add_pending(self.get_notification());
+        }
+    }
 }
 
-pub fn notification_event_loop<A, B : NotificationSource<A>, C : Database<A>>(
-    source: &mut B, db: &mut C) {
-    loop {
-        db.add_pending(source.get_notification());
+pub mod testing {
+    use std::comm::Receiver;
+    use super::NotificationSource;
+
+    pub struct TestNotificationSource {
+        source: Receiver<String>
+    }
+
+    impl TestNotificationSource {
+        pub fn new(source: Receiver<String>) -> TestNotificationSource {
+            TestNotificationSource {
+                source: source
+            }
+        }
+    }
+
+    impl NotificationSource<String> for TestNotificationSource {
+        fn get_notification(&self) -> String {
+            self.source.recv()
+        }
     }
 }

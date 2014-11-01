@@ -4,10 +4,12 @@
 use std::io::timer;
 use std::time::Duration;
 
-use builder::ToWholeBuildable;
+use builder::{WholeBuildable, ToWholeBuildable};
 use database::Database;
 
-pub fn worker_loop<A : ToWholeBuildable, B : Database<A>>(db: &mut B) {
+/// A = key type
+/// B = WholeBuildable type
+pub fn worker_loop<A : ToWholeBuildable<B>, B : WholeBuildable, C : Database<A>>(db: &mut C) {
     loop {
         match db.get_pending() {
             Some(a) => {
@@ -18,6 +20,17 @@ pub fn worker_loop<A : ToWholeBuildable, B : Database<A>>(db: &mut B) {
                 db.add_test_results(a, res);
             },
             None => timer::sleep(Duration::seconds(1))
+        }
+    }
+}
+
+pub mod testing {
+    use builder::{WholeBuildable, ToWholeBuildable};
+    use builder::testing::TestingRequest;
+
+    impl ToWholeBuildable<TestingRequest> for String {
+        fn to_whole_buildable(&self) -> TestingRequest { 
+            TestingRequest::new(self.as_slice(), "test/makefile")
         }
     }
 }

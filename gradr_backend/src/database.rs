@@ -22,7 +22,7 @@ pub trait Database<A> {
     fn add_test_results(&mut self, entry: A, results: BuildResult);
 }
 
-mod testing {
+pub mod testing {
     use std::collections::HashMap;
     use std::sync::mpsc_queue::Queue;
 
@@ -30,9 +30,18 @@ mod testing {
     use super::Database;
 
     /// Simply a directory to a status.
-    struct TestDatabase {
+    pub struct TestDatabase {
         pending: Queue<String>,
         complete: HashMap<String, BuildResult>
+    }
+
+    impl TestDatabase {
+        pub fn new() -> TestDatabase {
+            TestDatabase {
+                pending: Queue::new(),
+                complete: HashMap::new()
+            }
+        }
     }
 
     impl Database<String> for TestDatabase {
