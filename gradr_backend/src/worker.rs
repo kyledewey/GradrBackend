@@ -2,6 +2,7 @@
 // and process them.
 
 use std::io::timer;
+use std::sync::Arc;
 use std::time::Duration;
 
 use builder::{WholeBuildable, ToWholeBuildable};
@@ -9,7 +10,7 @@ use database::Database;
 
 /// A = key type
 /// B = WholeBuildable type
-pub fn worker_loop<A : ToWholeBuildable<B>, B : WholeBuildable, C : Database<A>>(db: &mut C) {
+pub fn worker_loop<A : ToWholeBuildable<B>, B : WholeBuildable, C : Database<A>>(db: Arc<C>) {
     loop {
         match db.get_pending() {
             Some(a) => {
@@ -25,7 +26,7 @@ pub fn worker_loop<A : ToWholeBuildable<B>, B : WholeBuildable, C : Database<A>>
 }
 
 pub mod testing {
-    use builder::{WholeBuildable, ToWholeBuildable};
+    use builder::ToWholeBuildable;
     use builder::testing::TestingRequest;
 
     impl ToWholeBuildable<TestingRequest> for String {

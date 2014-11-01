@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use database::Database;
 
 // Listens for notifications from some external source.
@@ -7,7 +9,7 @@ use database::Database;
 pub trait NotificationSource<A> {
     fn get_notification(&self) -> A;
 
-    fn notification_event_loop<'a, D : Database<A>>(&self, db: &'a mut D) {
+    fn notification_event_loop<D : Database<A>>(&self, db: Arc<D>) {
         loop {
             db.add_pending(self.get_notification());
         }

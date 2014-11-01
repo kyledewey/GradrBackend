@@ -107,6 +107,7 @@ fn parse_line(line: &str) -> IoResult<(String, TestResult)> {
     }
 }
 
+#[deriving(Show)]
 pub enum BuildResult {
     SetupEnvFailure(IoError),
     BuildFailure(IoError),
@@ -261,7 +262,7 @@ pub mod testing {
     use std::io::process::Command;
     use std::path::BytesContainer;
 
-    use super::{run_command, TestSuccess, Pass, Fail, WholeBuildable};
+    use super::{run_command, WholeBuildable};
 
     pub struct TestingRequest {
         dir: Path, // directory where the build is to be performed

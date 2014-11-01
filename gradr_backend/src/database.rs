@@ -11,20 +11,21 @@
 use builder::BuildResult;
 
 /// Type A is some key
-pub trait Database<A> {
-    fn add_pending(&mut self, entry: A);
+pub trait Database<A> : Sync + Send {
+    fn add_pending(&self, entry: A);
 
     /// Optionally gets a pending build from the database.
     /// If `Some` is returned, it will not be returned again.
     /// If `None` is returned, it is expected that the caller will sleep.
-    fn get_pending(&mut self) -> Option<A>;
+    fn get_pending(&self) -> Option<A>;
 
-    fn add_test_results(&mut self, entry: A, results: BuildResult);
+    fn add_test_results(&self, entry: A, results: BuildResult);
 }
 
 pub mod testing {
     use std::collections::HashMap;
-    use std::sync::mpsc_queue::Queue;
+    use std::sync::mpmc_bounded_queue::Queue;
+    use std::sync::RWLock;
 
     use builder::BuildResult;
     use super::Database;
@@ -32,29 +33,31 @@ pub mod testing {
     /// Simply a directory to a status.
     pub struct TestDatabase {
         pending: Queue<String>,
-        complete: HashMap<String, BuildResult>
+        pub results: RWLock<HashMap<String, BuildResult>>, // pub is HACK
     }
 
     impl TestDatabase {
         pub fn new() -> TestDatabase {
             TestDatabase {
-                pending: Queue::new(),
-                complete: HashMap::new()
+                pending: Queue::with_capacity(10),
+                results: RWLock::new(HashMap::new())
             }
         }
     }
 
     impl Database<String> for TestDatabase {
-        fn add_pending(&mut self, entry: String) {
+        fn add_pending(&self, entry: String) {
             self.pending.push(entry);
         }
 
-        fn get_pending(&mut self) -> Option<String> {
-            self.pending.casual_pop()
+        fn get_pending(&self) -> Option<String> {
+            self.pending.pop()
         }
         
-        fn add_test_results(&mut self, entry: String, results: BuildResult) {
-            self.complete.insert(entry, results);
+        fn add_test_results(&self, entry: String, results: BuildResult) {
+            let mut val = self.results.write();
+            val.insert(entry, results);
+            val.downgrade();
         }
     }
 }
