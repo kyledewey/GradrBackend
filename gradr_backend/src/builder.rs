@@ -9,7 +9,8 @@
 // have the same name, then only the last test is recorded.
 
 use std::collections::HashMap;
-use std::io::{BufferedReader, RefReader, IoResult, IoError, OtherIoError};
+use std::io::{BufferedReader, AsRefReader, RefReader, IoResult,
+              IoError, OtherIoError};
 use std::io::pipe::PipeStream;
 use std::io::process::{Command, Process, ExitStatus, ExitSignal,
                        ProcessExit};
@@ -73,8 +74,7 @@ impl ProcessReader {
         // unwrap should be ok - the documentation says `Some` is the default,
         // and we are not messing with any of the defaults
         BufferedReader::new(
-            Reader::by_ref(
-                self.p.stdout.as_mut().unwrap()))
+            self.p.stdout.as_mut().unwrap().by_ref())
     }
 }
 
