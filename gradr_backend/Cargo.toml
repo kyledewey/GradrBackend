@@ -4,3 +4,6 @@ name = "gradr_backend"
 version = "0.0.1"
 authors = ["Kyle Dewey <kyledewey@cs.ucsb.edu>"]
 
+
+[dependencies.sqlite3]
+git = "https://github.com/linuxfood/rustsqlite"

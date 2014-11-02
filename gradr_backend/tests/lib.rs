@@ -12,8 +12,10 @@ use gradr_backend::notification_listener::NotificationSource;
 use gradr_backend::notification_listener::testing::TestNotificationSource;
 use gradr_backend::worker::worker_loop_step;
 
+use gradr_backend::database::sqlite::SqliteDatabase;
+
 #[test]
-fn end_to_end() {
+fn end_to_end_in_memory() {
     let done1 = Arc::new(RWLock::new(false));
     let done2 = done1.clone();
 
@@ -61,6 +63,52 @@ fn end_to_end() {
                 break;
             },
             _ => ()
+        }
+    }
+
+    let mut val = done2.write();
+    *val = true;
+    val.downgrade();
+
+    assert!(success);
+}
+
+#[test]
+fn end_to_end_sqlite() {
+    let done1 = Arc::new(RWLock::new(false));
+    let done2 = done1.clone();
+
+    let db1 = Arc::new(SqliteDatabase::new().unwrap());
+    let db2 = db1.clone();
+    let db3 = db1.clone();
+
+    let (notification_sender, notification_recv) = sync_channel(10);
+
+    spawn(proc() {
+        let source = TestNotificationSource::new(notification_recv);
+        while source.notification_event_loop_step(&*db1) {}
+    });
+
+    spawn(proc() {
+        while !*done1.read() {
+            worker_loop_step(&*db2);
+        }
+    });
+
+    notification_sender.send("test/end_to_end".to_string());
+    notification_sender.send("TERMINATE".to_string());
+
+    let mut success = false;
+
+    for _ in range(0, 300u) {
+        timer::sleep(Duration::milliseconds(10));
+        match db3.results_for_entry("test/end_to_end") {
+            Some(ref str) => {
+                println!("{}", str);
+                success = true;
+                break;
+            },
+            None => ()
         }
     }
 

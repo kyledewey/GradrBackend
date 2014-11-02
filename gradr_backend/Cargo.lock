@@ -1,4 +1,12 @@
 [root]
 name = "gradr_backend"
 version = "0.0.1"
+dependencies = [
+ "sqlite3 0.1.0 (git+https://github.com/linuxfood/rustsqlite#84fe05e8655c3267ec51fec0e57ef11dba237385)",
+]
+
+[[package]]
+name = "sqlite3"
+version = "0.1.0"
+source = "git+https://github.com/linuxfood/rustsqlite#84fe05e8655c3267ec51fec0e57ef11dba237385"
 
