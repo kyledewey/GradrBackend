@@ -22,6 +22,8 @@ pub trait Database<A> : Sync + Send {
     fn get_pending(&self) -> Option<A>;
 
     fn add_test_results(&self, entry: A, results: BuildResult);
+
+    fn results_for_entry(&self, entry: A) -> Option<String>;
 }
 
 pub enum EntryStatus {
@@ -44,7 +46,7 @@ impl EntryStatus {
 // provide proper parameter passing and are thus susceptible to
 // injection attacks.  We should make it so we only care about
 // Postgres.
-pub trait SqlDatabase : Database<String> {
+pub trait SqlDatabaseInterface {
     /// Executes the given query, and returns the number of rows modified
     /// as a result.
     fn execute_query(&self, query: &str) -> uint;
@@ -53,22 +55,20 @@ pub trait SqlDatabase : Database<String> {
     /// return one text column, and at most one row.  Returns None if
     /// there were no rows returned.
     fn read_one_string(&self, query: &str) -> Option<String>;
+}
 
-    fn add_pending(&self, entry: String) {
-        self.execute_query(
-            format!("INSERT INTO {} VALUES (\"{}\", {}, NULL)",
-                    TABLE_NAME, entry, Pending.to_int()).as_slice());
-    }
+mod sql_db_helpers {
+    use super::{SqlDatabaseInterface, TABLE_NAME, Pending, InProgress};
 
-    fn get_candidate_entry(&self) -> Option<String> {
-        self.read_one_string(
+    pub fn get_candidate_entry<T : SqlDatabaseInterface>(t: &T) -> Option<String> {
+        t.read_one_string(
             format!("SELECT entry FROM {} WHERE status = {} LIMIT 1",
                     TABLE_NAME, Pending.to_int()).as_slice())
     }
 
-    fn try_lock_entry(&self, entry: &String) -> bool {
+    pub fn try_lock_entry<T : SqlDatabaseInterface>(t: &T, entry: &String) -> bool {
         let num_changed = 
-            self.execute_query(
+            t.execute_query(
                 format!("UPDATE {} SET status = {} WHERE entry = \"{}\" AND status = {}",
                         TABLE_NAME,
                         InProgress.to_int(),
@@ -80,12 +80,20 @@ pub trait SqlDatabase : Database<String> {
             _ => { assert!(false); false }
         }
     }
+}
+
+impl<T : SqlDatabaseInterface + Send + Sync> Database<String> for T {
+    fn add_pending(&self, entry: String) {
+        self.execute_query(
+            format!("INSERT INTO {} VALUES (\"{}\", {}, NULL)",
+                    TABLE_NAME, entry, Pending.to_int()).as_slice());
+    }
 
     fn get_pending(&self) -> Option<String> {
         loop {
-            match self.get_candidate_entry() {
+            match sql_db_helpers::get_candidate_entry(self) {
                 Some(entry) => {
-                    if self.try_lock_entry(&entry) {
+                    if sql_db_helpers::try_lock_entry(self, &entry) {
                         return Some(entry);
                     }
                 }
@@ -105,12 +113,13 @@ pub trait SqlDatabase : Database<String> {
         assert_eq!(num_changed, 1);
     }
 
-    fn results_for_entry(&self, entry: &str) -> Option<String> {
+    fn results_for_entry(&self, entry: String) -> Option<String> {
         self.read_one_string(
             format!("SELECT results FROM {} WHERE entry = \"{}\"",
                     TABLE_NAME, entry).as_slice())
     }
-}
+
+}    
 
 /// For integration tests.
 pub mod testing {
@@ -124,8 +133,7 @@ pub mod testing {
     /// Simply a directory to a status.
     pub struct TestDatabase {
         pending: Queue<String>,
-         // pub is HACK for running integration tests
-        pub results: RWLock<HashMap<String, BuildResult>>,
+        results: RWLock<HashMap<String, BuildResult>>,
     }
 
     impl TestDatabase {
@@ -151,6 +159,10 @@ pub mod testing {
             val.insert(entry, results);
             val.downgrade();
         }
+
+        fn results_for_entry(&self, entry: String) -> Option<String> {
+            self.results.read().find_equiv(&entry).map(|res| res.to_string())
+        }
     }
 }
 
@@ -159,14 +171,11 @@ pub mod sqlite {
 
     use std::sync::Mutex;
 
-    use builder::BuildResult;
-    
     use self::sqlite3::types::SqliteResult;
     use self::sqlite3::types::{SQLITE_ROW, SQLITE_DONE};
     use self::sqlite3::database::Database as SqliteDatabaseInternal;
-    use super::{Pending, InProgress, Done};
 
-    use super::SqlDatabase;
+    use super::SqlDatabaseInterface;
 
     pub struct SqliteDatabase {
         db: Mutex<SqliteDatabaseInternal>
@@ -182,11 +191,11 @@ pub mod sqlite {
         }
     }
 
-    impl SqlDatabase for SqliteDatabase {
+    impl SqlDatabaseInterface for SqliteDatabase {
         fn execute_query(&self, query: &str) -> uint {
-            let lock = self.db.lock();
+            let mut lock = self.db.lock();
             lock.exec(query).ok().expect(query);
-            lock.get_changed()
+            lock.get_changes().to_uint().unwrap()
         }
 
         fn read_one_string(&self, query: &str) -> Option<String> {
