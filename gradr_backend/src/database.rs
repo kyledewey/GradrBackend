@@ -96,6 +96,7 @@ pub mod sqlite {
     impl SqliteDatabase {
         pub fn new() -> SqliteResult<SqliteDatabase> {
             let mut db = try!(sqlite3::open(":memory:"));
+
             try!(db.exec(
                 "CREATE TABLE tbl(entry TEXT PRIMARY KEY, status INTEGER NOT NULL, results Text)"));
             Ok(SqliteDatabase { db: Mutex::new(db) })
@@ -123,11 +124,12 @@ pub mod sqlite {
         fn read_one_text(&self, query: &str) -> Option<String> {
             let lock = self.db.lock();
             let mut cursor = lock.prepare(query, &None).ok().expect("TWO");
-            if cursor.step() == SQLITE_ROW {
-                let entry = cursor.get_text(0).unwrap_or("").to_string();
-                let step_res = cursor.step();
-                assert_eq!(step_res, SQLITE_DONE);
-                Some(entry.to_string())
+            let step_one = cursor.step();
+            if step_one == SQLITE_ROW {
+                let op_text = cursor.get_text(0).map(|s| s.to_string());
+                let step_two = cursor.step();
+                assert_eq!(step_two, SQLITE_DONE);
+                op_text
             } else {
                 None
             }
