@@ -10,6 +10,8 @@
 
 use builder::BuildResult;
 
+static TABLE_NAME : &'static str = "tbl";
+
 /// Type A is some key
 pub trait Database<A> : Sync + Send {
     fn add_pending(&self, entry: A);
@@ -20,6 +22,88 @@ pub trait Database<A> : Sync + Send {
     fn get_pending(&self) -> Option<A>;
 
     fn add_test_results(&self, entry: A, results: BuildResult);
+}
+
+pub enum EntryStatus {
+    Pending,
+    InProgress,
+    Done
+}
+
+impl EntryStatus {
+    fn to_int(&self) -> int {
+        match *self {
+            Pending => 0,
+            InProgress => 1,
+            Done => 2
+        }
+    }
+}
+
+// TODO: we are abstracting over SQLite3 bindings, which do not
+// provide proper parameter passing and are thus susceptible to
+// injection attacks.  We should make it so we only care about
+// Postgres.
+pub trait SqlDatabase : Database<String> {
+    /// Executes the given query, and returns the number of rows modified
+    /// as a result.
+    fn execute_query(&self, query: &str) -> uint;
+
+    /// Reads a textual column from a query which is expected to
+    /// return one text column, and at most one row.  Returns None if
+    /// there were no rows returned.
+    fn read_one_string(&self, query: &str) -> Option<String>;
+
+    fn add_pending(&self, entry: String) {
+        self.execute_query(
+            format!("INSERT INTO {} VALUES (\"{}\", {}, NULL)",
+                    TABLE_NAME, entry, Pending.to_int()).as_slice());
+    }
+
+    fn get_candidate_entry(&self) -> Option<String> {
+        self.read_one_string(
+            format!("SELECT entry FROM {} WHERE status = {} LIMIT 1",
+                    TABLE_NAME, Pending.to_int()).as_slice())
+    }
+
+    fn try_lock_entry(&self, entry: &String) -> bool {
+        let num_changed = 
+            self.execute_query(
+                format!("UPDATE {} SET status = {} WHERE entry = \"{}\" AND status = {}",
+                        TABLE_NAME,
+                        InProgress.to_int(),
+                        entry,
+                        Pending.to_int()).as_slice());
+        match num_changed {
+            0 => false,
+            1 => true,
+            _ => { assert!(false); false }
+        }
+    }
+
+    fn get_pending(&self) -> Option<String> {
+        loop {
+            match self.get_candidate_entry() {
+                Some(entry) => {
+                    if self.try_lock_entry(&entry) {
+                        return Some(entry);
+                    }
+                }
+                None => { return None; }
+            }
+        }
+    }
+
+    fn add_test_results(&self, entry: String, results: BuildResult) {
+        let num_changed = 
+            self.execute_query(
+                format!("UPDATE {} SET status = {}, results = \"{}\" WHERE entry = \"{}\"",
+                        TABLE_NAME,
+                        Done.to_int(),
+                        results.to_string(),
+                        entry).as_slice());
+        assert_eq!(num_changed, 1);
+    }
 }
 
 /// For integration tests.
@@ -74,25 +158,12 @@ pub mod sqlite {
     use self::sqlite3::types::SqliteResult;
     use self::sqlite3::types::{SQLITE_ROW, SQLITE_DONE};
     use self::sqlite3::database::Database as SqliteDatabaseInternal;
+    use super::{Pending, InProgress, Done};
 
     use super::Database;
 
     pub struct SqliteDatabase {
         db: Mutex<SqliteDatabaseInternal>
-    }
-
-    enum EntryStatus {
-        Pending,
-        InProgress,
-        Done
-    }
-
-    fn status_to_int(status: &EntryStatus) -> int {
-        match *status {
-            Pending => 0,
-            InProgress => 1,
-            Done => 2
-        }
     }
 
     impl SqliteDatabase {
@@ -107,15 +178,15 @@ pub mod sqlite {
         fn get_candidate_entry(&self) -> Option<String> {
             self.read_one_text(
                 format!("SELECT entry FROM tbl WHERE status = {} LIMIT 1",
-                        status_to_int(&Pending)).as_slice())
+                        Pending.to_int()).as_slice())
         }
 
         fn try_lock_entry(&self, entry: &String) -> bool {
             self.db.lock().exec(
                 format!("UPDATE tbl SET status = {} WHERE entry = \"{}\" AND status = {}",
-                        status_to_int(&InProgress),
+                        InProgress.to_int(),
                         entry,
-                        status_to_int(&Pending)).as_slice()).ok().expect("ONE");
+                        Pending.to_int()).as_slice()).ok().expect("ONE");
             match self.db.lock().get_changes() {
                 0 => false,
                 1 => true,
@@ -146,7 +217,7 @@ pub mod sqlite {
     impl Database<String> for SqliteDatabase {
         fn add_pending(&self, entry: String) {
             let query = format!("INSERT INTO tbl VALUES(\"{}\", {}, NULL)",
-                        entry, status_to_int(&Pending));
+                        entry, Pending.to_int());
             self.db.lock().exec(query.as_slice()).ok().expect(query.as_slice());
         }
 
@@ -166,7 +237,7 @@ pub mod sqlite {
         fn add_test_results(&self, entry: String, results: BuildResult) {
             self.db.lock().exec(
                 format!("UPDATE tbl SET status = {}, results = \"{}\" WHERE entry = \"{}\"",
-                        status_to_int(&Done),
+                        Done.to_int(),
                         results.to_string(),
                         entry).as_slice()).ok().expect("FOUR");
         }
