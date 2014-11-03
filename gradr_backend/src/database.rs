@@ -22,6 +22,7 @@ pub trait Database<A> : Sync + Send {
     fn add_test_results(&self, entry: A, results: BuildResult);
 }
 
+/// For integration tests.
 pub mod testing {
     use std::collections::HashMap;
     use std::sync::mpmc_bounded_queue::Queue;
@@ -33,7 +34,8 @@ pub mod testing {
     /// Simply a directory to a status.
     pub struct TestDatabase {
         pending: Queue<String>,
-        pub results: RWLock<HashMap<String, BuildResult>>, // pub is HACK
+         // pub is HACK for running integration tests
+        pub results: RWLock<HashMap<String, BuildResult>>,
     }
 
     impl TestDatabase {
@@ -168,5 +170,49 @@ pub mod sqlite {
                         results.to_string(),
                         entry).as_slice()).ok().expect("FOUR");
         }
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::Database;
+    use super::sqlite::SqliteDatabase;
+    use super::testing::TestDatabase;
+
+    use builder::TestSuccess;
+
+    use std::collections::HashMap;
+
+    static KEY : &'static str = "foobar";
+
+    fn add_get_pending<D : Database<String>>(db: &D) {
+        db.add_pending(KEY.to_string());
+        assert_eq!(db.get_pending(), Some(KEY.to_string()));
+    }
+
+    fn add_test_results<D : Database<String>>(db: &D) {
+        add_get_pending(db);
+        db.add_test_results(KEY.to_string(),
+                            TestSuccess(HashMap::new()));
+    }
+        
+    #[test]
+    fn memory_add_get_pending() {
+        add_get_pending(&TestDatabase::new());
+    }
+
+    #[test]
+    fn memory_add_test_results() {
+        add_test_results(&TestDatabase::new());
+    }
+
+    #[test]
+    fn sqlite_add_get_pending() {
+        add_get_pending(&SqliteDatabase::new().unwrap());
+    }
+
+    #[test]
+    fn sqlite_add_test_results() {
+        add_test_results(&SqliteDatabase::new().unwrap());
     }
 }
