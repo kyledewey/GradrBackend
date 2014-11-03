@@ -175,7 +175,7 @@ pub mod sqlite {
     use self::sqlite3::types::{SQLITE_ROW, SQLITE_DONE};
     use self::sqlite3::database::Database as SqliteDatabaseInternal;
 
-    use super::SqlDatabaseInterface;
+    use super::{SqlDatabaseInterface, TABLE_NAME};
 
     pub struct SqliteDatabase {
         db: Mutex<SqliteDatabaseInternal>
@@ -185,8 +185,11 @@ pub mod sqlite {
         pub fn new() -> SqliteResult<SqliteDatabase> {
             let mut db = try!(sqlite3::open(":memory:"));
 
-            try!(db.exec(
-                "CREATE TABLE tbl(entry TEXT PRIMARY KEY, status INTEGER NOT NULL, results Text)"));
+            try!(
+                db.exec(
+                    format!(
+                        "CREATE TABLE {}(entry TEXT PRIMARY KEY, status INTEGER NOT NULL, results Text)",
+                        TABLE_NAME).as_slice()));
             Ok(SqliteDatabase { db: Mutex::new(db) })
         }
     }
