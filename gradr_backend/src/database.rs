@@ -217,6 +217,57 @@ pub mod sqlite {
     }
 }
 
+pub mod postgres {
+    extern crate postgres;
+
+    use std::sync::Mutex;
+
+    use self::postgres::{Connection, NoSsl};
+
+    use super::{SqlDatabaseInterface, TABLE_NAME};
+
+    pub struct PostgresDatabase {
+        db: Mutex<Connection>
+    }
+    
+    impl PostgresDatabase {
+        pub fn new(loc: &str) -> Option<PostgresDatabase> {
+            match Connection::connect(loc, &NoSsl).ok() {
+                Some(db) => {
+                    db.execute(
+                        format!(
+                            "CREATE TABLE {}(entry TEXT PRIMARY KEY, status INTEGER NOT NULL, results Text)",
+                            TABLE_NAME).as_slice(), []).unwrap();
+                    Some(PostgresDatabase { db: Mutex::new(db) })
+                },
+                None => None
+            }
+        }
+    }
+
+    impl SqlDatabaseInterface for PostgresDatabase {
+        fn execute_query(&self, query: &str) -> uint {
+            self.db.lock().execute(query, []).unwrap()
+        }
+
+        fn read_one_string(&self, query: &str) -> Option<String> {
+            let lock = self.db.lock();
+            let stmt = lock.prepare(query).unwrap();
+            let mut rows = stmt.query([]).unwrap();
+            let op_row_one = rows.next();
+
+            match op_row_one {
+                Some(ref row) => {
+                    let op_row_two = rows.next();
+                    assert!(op_row_two.is_none());
+                    Some(row.get(0))
+                },
+                None => None
+            }
+        }
+    }
+}
+        
 #[cfg(test)]
 pub mod tests {
     use super::Database;
