@@ -195,7 +195,7 @@ pub mod github {
     use self::github::notification::PushNotification;
     use self::url::Url;
 
-    use super::WholeBuildable;
+    use super::{WholeBuildable, ToWholeBuildable, run_command};
     use super::testing::TestingRequest;
 
     pub struct GitHubRequest {
@@ -206,7 +206,7 @@ pub mod github {
     }
 
     impl GitHubRequest {
-        pub fn new<'a>(pn: &'a PushNotification, build_root: Path, makefile_loc: Path) -> GitHubRequest {
+        pub fn new(pn: &PushNotification, build_root: Path, makefile_loc: Path) -> GitHubRequest {
             let mut dir = build_root.clone();
 
             // Compiler could not infer quite a bit here, hence the explicit
@@ -248,6 +248,23 @@ pub mod github {
 
         fn test_command(&self) -> Command {
             self.testing_req.test_command()
+        }
+    }
+
+    impl ToWholeBuildable<GitHubRequest> for PushNotification {
+        fn to_whole_buildable(&self) -> GitHubRequest {
+            GitHubRequest::new(
+                self,
+                Path::new("build_test"),
+                Path::new("test/makefile"))
+        }
+    }
+
+    impl Drop for GitHubRequest {
+        fn drop(&mut self) {
+            let mut c = Command::new("rm");
+            c.arg("-rf").arg(self.testing_req.dir.as_str().unwrap());
+            run_command(&c, None, ());
         }
     }
 }
@@ -340,8 +357,8 @@ pub mod testing {
     use super::{run_command, WholeBuildable};
 
     pub struct TestingRequest {
-        dir: Path, // directory where the build is to be performed
-        makefile_loc: Path // where the makefile is located
+        pub dir: Path, // directory where the build is to be performed
+        pub makefile_loc: Path // where the makefile is located
     }
 
     impl TestingRequest {

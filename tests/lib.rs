@@ -16,7 +16,7 @@ use gradr_backend::notification_listener::{NotificationSource, GitHubServer};
 use gradr_backend::notification_listener::testing::TestNotificationSource;
 use gradr_backend::worker::worker_loop_step;
 
-use self::github::server::testing::send_to_server;
+use self::github::server::testing::{send_to_server, SendPush};
 use self::github::notification::PushNotification;
 
 use self::url::Url;
@@ -95,7 +95,43 @@ fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
 
     end_to_end(db, not_src, to_send, sender, stop_all, checker);
 }
-    
+
+fn end_to_end_test_github_source<A : Database<PushNotification>>(db: A, port: Port) {
+    let server = GitHubServer::new(ADDR, port);
+    let not_src = server.event_loop().unwrap();
+    let not1 = 
+        PushNotification {
+            clone_url: Url::parse("https://github.com/scalableinternetservices/GradrBackend.git").unwrap(),
+            branch: "master".to_string()
+        };
+
+    let to_send = vec!(not1);
+    let sender = |not: PushNotification| {
+        send_to_server(SendPush(not).to_string().as_slice(), ADDR, port)
+    };
+    let stop_all = || {
+        //not_src1.wrapped.send_finish()
+    };
+    let checker = |db: &A| {
+        let not2 = 
+            PushNotification {
+                clone_url: Url::parse("https://github.com/scalableinternetservices/GradrBackend.git").unwrap(),
+                branch: "master".to_string()
+            };
+
+        match db.results_for_entry(not2) {
+            Some(ref s) => {
+                assert!(s.contains("test1: Pass"));
+                assert!(s.contains("test2: Fail"));
+                false
+            },
+            None => true
+        }
+    };
+
+    end_to_end(db, not_src, to_send, sender, stop_all, checker);
+}
+
 #[test]
 fn end_to_end_test_not_source_in_memory() {
     end_to_end_test_not_source(TestDatabase::new());
