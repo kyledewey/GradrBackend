@@ -31,6 +31,14 @@ pub fn run_command<A>(c: &Command, timeout: Option<u64>, on_success: A) -> IoRes
             .wait())).if_ok(on_success)
 }
 
+// Runs the given chain of commands.  Returns the first error.
+pub fn run_commands<A>(commands: &Vec<Command>, timeout: Option<u64>, on_success: A) -> IoResult<A> {
+    for cmd in commands.iter() {
+        try!(run_command(cmd, timeout.clone(), ()));
+    }
+    Ok(on_success)
+}
+
 trait ErrorSimplifier {
     fn if_ok<A>(&self, ret_this: A) -> IoResult<A>;
 }
@@ -118,10 +126,10 @@ pub enum BuildResult {
 pub trait WholeBuildable {
     // BEGIN FUNCTIONS TO IMPLEMENT
     fn env_timeout(&self) -> Option<u64>;
-    fn env_command(&self) -> Command;
+    fn env_commands(&self) -> Vec<Command>;
 
     fn build_timeout(&self) -> Option<u64>;
-    fn build_command(&self) -> Command;
+    fn build_commands(&self) -> Vec<Command>;
 
     fn test_timeout(&self) -> Option<u64>;
     fn test_command(&self) -> Command;
@@ -131,11 +139,11 @@ pub trait WholeBuildable {
     /// After calling this, it is assumed that we are ready
     /// to call make
     fn setup_env(&self) -> IoResult<()> {
-        run_command(&self.env_command(), self.env_timeout(), ())
+        run_commands(&self.env_commands(), self.env_timeout(), ())
     }
     
     fn do_build(&self) -> IoResult<()> { 
-        run_command(&self.build_command(), self.build_timeout(), ())
+        run_commands(&self.build_commands(), self.build_timeout(), ())
     }
 
     fn do_testing(&self) -> IoResult<HashMap<String, TestResult>> {
@@ -174,6 +182,74 @@ pub trait WholeBuildable {
 
 pub trait ToWholeBuildable<A : WholeBuildable> {
     fn to_whole_buildable(&self) -> A;
+}
+
+pub mod github {
+    extern crate url;
+    extern crate github;
+
+    use std::io::Command;
+    use std::slice::Splits;
+    use std::path::posix::StrComponents;
+
+    use self::github::notification::PushNotification;
+    use self::url::Url;
+
+    use super::WholeBuildable;
+    use super::testing::TestingRequest;
+
+    pub struct GitHubRequest {
+        build_root: Path,
+        branch: String,
+        clone_url: Url,
+        testing_req: TestingRequest,
+    }
+
+    impl GitHubRequest {
+        pub fn new<'a>(pn: &'a PushNotification, build_root: Path, makefile_loc: Path) -> GitHubRequest {
+            let mut dir = build_root.clone();
+
+            // Compiler could not infer quite a bit here, hence the explicit
+            // lets and annotations.
+            let fp: Path = pn.clone_url.to_file_path().unwrap();
+            let mut components: StrComponents = fp.str_components();
+            let trim: &[_] = &['.', 'g', 'i', 't'];
+            dir.push(components.last().unwrap().unwrap()
+                     .trim_right_chars(trim));
+            
+            GitHubRequest {
+                build_root: build_root,
+                branch: pn.branch.clone(),
+                clone_url: pn.clone_url.clone(),
+                testing_req: TestingRequest::new(dir, makefile_loc)
+            }
+        }
+    }
+    
+    impl WholeBuildable for GitHubRequest {
+        fn env_timeout(&self) -> Option<u64> { None }
+        fn build_timeout(&self) -> Option<u64> { None }
+        fn test_timeout(&self) -> Option<u64> { None }
+        
+        fn env_commands(&self) -> Vec<Command> {
+            let mut parent = self.testing_req.env_commands();
+            let mut clone = Command::new("git");
+            clone.arg("clone").arg("-b").arg(self.branch.as_slice());
+            clone.arg(self.clone_url.serialize());
+            clone.cwd(&self.build_root);
+            
+            parent.push(clone);
+            parent
+        }
+
+        fn build_commands(&self) -> Vec<Command> {
+            self.testing_req.build_commands()
+        }
+
+        fn test_command(&self) -> Command {
+            self.testing_req.test_command()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -301,17 +377,17 @@ pub mod testing {
     impl WholeBuildable for TestingRequest {
         fn env_timeout(&self) -> Option<u64> { None }
 
-        fn env_command(&self) -> Command {
+        fn env_commands(&self) -> Vec<Command> {
             let mut c = Command::new("cp");
             c.arg(self.makefile_loc.as_str().unwrap());
             c.arg(self.dir.as_str().unwrap());
-            c
+            vec!(c)
         }
 
         fn build_timeout(&self) -> Option<u64> { None }
 
-        fn build_command(&self) -> Command {
-            self.make_with_arg("build")
+        fn build_commands(&self) -> Vec<Command> {
+            vec!(self.make_with_arg("build"))
         }
 
         fn test_timeout(&self) -> Option<u64> { None }
