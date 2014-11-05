@@ -12,18 +12,32 @@ use self::github::notification::PushNotification;
 
 use self::hyper::{IpAddr, Port};
 
+pub trait Convertable<A> {
+    fn convert(self) -> A;
+}
+
+impl<A> Convertable<A> for A {
+    fn convert(self) -> A { self }
+}
+
+impl Convertable<String> for PushNotification {
+    fn convert(self) -> String {
+        format!("{}\t{}", self.clone_url, self.branch)
+    }
+}
+
 // Listens for notifications from some external source.
 // Upon receiving a notification, information gets put into
 // a database which is polled upon later.
 
-pub trait NotificationSource<A> {
-    fn get_notification(&self) -> Option<A>;
+pub trait NotificationSource<A, B : Convertable<A>> {
+    fn get_notification(&self) -> Option<B>;
 
     /// Returns true if processing should continue, else false
     fn notification_event_loop_step<D : Database<A>>(&self, db: &D) -> bool {
         match self.get_notification() {
             Some(not) => {
-                db.add_pending(not);
+                db.add_pending(not.convert());
                 true
             },
             None => false
@@ -41,26 +55,32 @@ impl NotificationReceiver for SenderWrapper {
     }
 }
 
-impl NotificationSource<PushNotification> for Receiver<Option<PushNotification>> {
-    fn get_notification(&self) -> Option<PushNotification> {
-        self.recv()
-    }
-}
-
-struct GitHubServer<'a> {
+pub struct GitHubServer<'a> {
     conn: NotificationListener<'a, SenderWrapper>,
     recv: Receiver<Option<PushNotification>>,
     send_kill_to: SyncSender<Option<PushNotification>>
 }
 
-impl<'a> NotificationSource<PushNotification> for GitHubServer<'a> {
+impl NotificationSource<String, PushNotification> for RunningServer {
     fn get_notification(&self) -> Option<PushNotification> {
-        self.recv.get_notification()
+        self.recv.recv()
+    }
+}
+
+pub struct RunningServer {
+    close: ConnectionCloser,
+    recv: Receiver<Option<PushNotification>>,
+    send_kill_to: SyncSender<Option<PushNotification>>
+}
+
+impl RunningServer {
+    pub fn send_finish(&self) {
+        self.send_kill_to.send(None)
     }
 }
 
 impl<'a> GitHubServer<'a> {
-    fn new<'a>(addr: IpAddr, port: Port) -> GitHubServer<'a> {
+    pub fn new<'a>(addr: IpAddr, port: Port) -> GitHubServer<'a> {
         let (tx, rx) = sync_channel(100);
         GitHubServer {
             conn: NotificationListener::new(
@@ -71,12 +91,15 @@ impl<'a> GitHubServer<'a> {
         }
     }
 
-    fn event_loop(self) ->HttpResult<ConnectionCloser> {
-        self.conn.event_loop()
-    }
-
-    fn send_finish(&self) {
-        self.send_kill_to.send(None)
+    pub fn event_loop(self) ->HttpResult<RunningServer> {
+        let recv = self.recv;
+        let send_kill = self.send_kill_to;
+        let close = try!(self.conn.event_loop());
+        Ok(RunningServer {
+            close: close,
+            recv: recv,
+            send_kill_to: send_kill
+        })
     }
 }
 
@@ -96,7 +119,7 @@ pub mod testing {
         }
     }
 
-    impl NotificationSource<String> for TestNotificationSource {
+    impl NotificationSource<String, String> for TestNotificationSource {
         fn get_notification(&self) -> Option<String> {
             let retval = self.source.recv();
             if retval.as_slice() == "TERMINATE" {

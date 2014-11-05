@@ -15,4 +15,7 @@ git = "https://github.com/kyledewey/rust-postgres"
 git = "https://github.com/kyledewey/rust-github.git"
 branch = "push_notification"
 
+[dependencies.url]
+name = "url"
+git = "https://github.com/servo/rust-url"
 
