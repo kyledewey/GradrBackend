@@ -22,21 +22,24 @@ use self::url::Url;
 use self::hyper::{IpAddr, Ipv4Addr, Port};
 
 static ADDR: IpAddr = Ipv4Addr(127, 0, 0, 1);
-static END_TO_END_KEY: &'static str = "test/end_to_end";
-    
-fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
+
+fn end_to_end<E, D : Database<E>, N : NotificationSource<E>>(
+    db: D,
+    not_src: N,
+    to_send: &Vec<E>,
+    sender: |E| -> (),
+    stop_all: || -> (),
+    checker: |&D| -> bool) { // returns true if it expects more results
+
     let done1 = Arc::new(RWLock::new(false));
     let done2 = done1.clone();
 
     let db1 = Arc::new(db);
     let db2 = db1.clone();
     let db3 = db1.clone();
-
-    let (notification_sender, notification_recv) = sync_channel(10);
-
+    
     spawn(proc() {
-        let source = TestNotificationSource::new(notification_recv);
-        while source.notification_event_loop_step(&*db1) {}
+        while not_src.notification_event_loop_step(&*db1) {}
     });
 
     spawn(proc() {
@@ -45,21 +48,19 @@ fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
         }
     });
 
-    notification_sender.send(Some(Path::new(END_TO_END_KEY)));
-    notification_sender.send(None);
+    for e in to_send.iter() {
+        sender(*e);
+    }
+
+    stop_all();
 
     let mut success = false;
 
     for _ in range(0, 300u) {
         timer::sleep(Duration::milliseconds(10));
-        match db3.results_for_entry(Path::new(END_TO_END_KEY)) {
-            Some(ref s) => {
-                assert!(s.contains("test1: Pass"));
-                assert!(s.contains("test2: Fail"));
-                success = true;
-                break;
-            },
-            None => ()
+        if !checker(&*db3) {
+            success = true;
+            break;
         }
     }
 
@@ -69,6 +70,76 @@ fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
 
     assert!(success);
 }
+
+fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
+    let (notification_sender, notification_recv) = sync_channel(10);
+    let not_src = TestNotificationSource::new(notification_recv);
+    let to_send = &vec!(Path::new("test/end_to_end"));
+    let sender = |path: Path| {
+        notification_sender.send(Some(path));
+    };
+    let stop_all = || {
+        notification_sender.send(None);
+    };
+    let checker = |db: &A| {
+        match db.results_for_entry(Path::new("test/end_to_end")) {
+            Some(ref s) => {
+                assert!(s.contains("test1: Pass"));
+                assert!(s.contains("test2: Fail"));
+                false
+            },
+            None => true
+        }
+    };
+
+    end_to_end(db, not_src, to_send, sender, stop_all, checker);
+}
+
+// fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
+//     let done1 = Arc::new(RWLock::new(false));
+//     let done2 = done1.clone();
+
+//     let db1 = Arc::new(db);
+//     let db2 = db1.clone();
+//     let db3 = db1.clone();
+
+//     let (notification_sender, notification_recv) = sync_channel(10);
+
+//     spawn(proc() {
+//         let source = TestNotificationSource::new(notification_recv);
+//         while source.notification_event_loop_step(&*db1) {}
+//     });
+
+//     spawn(proc() {
+//         while !*done1.read() {
+//             worker_loop_step(&*db2);
+//         }
+//     });
+
+//     notification_sender.send(Some(Path::new(END_TO_END_KEY)));
+//     notification_sender.send(None);
+
+//     let mut success = false;
+
+//     for _ in range(0, 300u) {
+//         timer::sleep(Duration::milliseconds(10));
+//         match db3.results_for_entry(Path::new(END_TO_END_KEY)) {
+//             Some(ref s) => {
+//                 assert!(s.contains("test1: Pass"));
+//                 assert!(s.contains("test2: Fail"));
+//                 success = true;
+//                 break;
+//             },
+//             None => ()
+//         }
+//     }
+
+//     let mut val = done2.write();
+//     *val = true;
+//     val.downgrade();
+
+//     assert!(success);
+// }
     
 #[test]
 fn end_to_end_test_not_source_in_memory() {
