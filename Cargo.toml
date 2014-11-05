@@ -10,3 +10,9 @@ git = "https://github.com/linuxfood/rustsqlite"
 
 [dependencies.postgres]
 git = "https://github.com/kyledewey/rust-postgres"
+
+[dependencies.rust_github]
+git = "https://github.com/kyledewey/rust-github.git"
+branch = "push_notification"
+
+
