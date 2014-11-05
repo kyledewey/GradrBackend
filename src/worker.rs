@@ -6,7 +6,7 @@ use database::Database;
 
 /// A = key type
 /// B = WholeBuildable type
-pub fn worker_loop_step<A : ToWholeBuildable<B>, B : WholeBuildable, C : Database<A>>(db: &C) {
+pub fn worker_loop_step<B : WholeBuildable, A : ToWholeBuildable<B>, C : Database<A>>(db: &C) {
     match db.get_pending() {
         Some(a) => {
             // cannot do this as a one-liner, because we transfer ownership
@@ -22,10 +22,11 @@ pub fn worker_loop_step<A : ToWholeBuildable<B>, B : WholeBuildable, C : Databas
 pub mod testing {
     use builder::ToWholeBuildable;
     use builder::testing::TestingRequest;
+    use notification_listener::Convertable;
 
     impl ToWholeBuildable<TestingRequest> for String {
-        fn to_whole_buildable(&self) -> TestingRequest { 
-            TestingRequest::new(self.as_slice(), "test/makefile")
+        fn to_whole_buildable(&self) -> TestingRequest {
+            TestingRequest::new(Path::new(self.as_slice()), Path::new("test/makefile"))
         }
     }
 }

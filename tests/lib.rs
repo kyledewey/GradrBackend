@@ -25,6 +25,7 @@ use self::hyper::{IpAddr, Ipv4Addr, Port};
 static ADDR: IpAddr = Ipv4Addr(127, 0, 0, 1);
 static END_TO_END_KEY: &'static str = "test/end_to_end";
 
+/*
 // STOPPED HERE
 // Code compiles right now, but it wouldn't work because it
 // implicitly assumes the database is returning a path to build.
@@ -80,6 +81,7 @@ fn end_to_end_github<N : Convertable<String>, D : Database<String>>(db: D, port:
 
     assert!(success);
 }
+*/
     
 fn end_to_end<A : Database<String>>(db: A) {
     let done1 = Arc::new(RWLock::new(false));
@@ -102,8 +104,8 @@ fn end_to_end<A : Database<String>>(db: A) {
         }
     });
 
-    notification_sender.send(END_TO_END_KEY.to_string());
-    notification_sender.send("TERMINATE".to_string());
+    notification_sender.send(Some(Path::new(END_TO_END_KEY)));
+    notification_sender.send(None);
 
     let mut success = false;
 

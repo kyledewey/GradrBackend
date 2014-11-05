@@ -260,7 +260,6 @@ mod parse_tests {
 
 pub mod testing {
     use std::io::process::Command;
-    use std::path::BytesContainer;
 
     use super::{run_command, WholeBuildable};
 
@@ -270,10 +269,10 @@ pub mod testing {
     }
 
     impl TestingRequest {
-        pub fn new<A : BytesContainer>(dir: A, makefile_loc: A) -> TestingRequest {
+        pub fn new(dir: Path, makefile_loc: Path) -> TestingRequest {
             TestingRequest {
-                dir: Path::new(dir),
-                makefile_loc: Path::new(makefile_loc)
+                dir: dir,
+                makefile_loc: makefile_loc
             }
         }
 
@@ -329,8 +328,9 @@ mod build_tests {
     use super::testing::TestingRequest;
 
     fn req(name: &str) -> TestingRequest {
-        TestingRequest::new(format!("test/{}", name),
-                            "test/makefile".to_string())
+        TestingRequest::new(
+            Path::new(format!("test/{}", name).as_slice()),
+            Path::new("test/makefile"))
     }
 
     #[test]

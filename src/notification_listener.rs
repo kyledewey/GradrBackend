@@ -30,11 +30,11 @@ impl Convertable<String> for PushNotification {
 // Upon receiving a notification, information gets put into
 // a database which is polled upon later.
 
-pub trait NotificationSource<A, B : Convertable<A>> {
-    fn get_notification(&self) -> Option<B>;
+pub trait NotificationSource<Rep, Not : Convertable<Rep>> {
+    fn get_notification(&self) -> Option<Not>;
 
     /// Returns true if processing should continue, else false
-    fn notification_event_loop_step<D : Database<A>>(&self, db: &D) -> bool {
+    fn notification_event_loop_step<D : Database<Rep>>(&self, db: &D) -> bool {
         match self.get_notification() {
             Some(not) => {
                 db.add_pending(not.convert());
@@ -105,28 +105,29 @@ impl<'a> GitHubServer<'a> {
 
 pub mod testing {
     use std::comm::Receiver;
-    use super::NotificationSource;
+    use super::{NotificationSource, Convertable};
 
     pub struct TestNotificationSource {
-        source: Receiver<String>
+        source: Receiver<Option<Path>>
     }
 
     impl TestNotificationSource {
-        pub fn new(source: Receiver<String>) -> TestNotificationSource {
+        pub fn new(source: Receiver<Option<Path>>) -> TestNotificationSource {
             TestNotificationSource {
                 source: source
             }
         }
     }
 
-    impl NotificationSource<String, String> for TestNotificationSource {
-        fn get_notification(&self) -> Option<String> {
-            let retval = self.source.recv();
-            if retval.as_slice() == "TERMINATE" {
-                None
-            } else {
-                Some(retval)
-            }
+    impl Convertable<String> for Path {
+        fn convert(self) -> String {
+            self.as_str().unwrap().to_string()
+        }
+    }
+
+    impl NotificationSource<String, Path> for TestNotificationSource {
+        fn get_notification(&self) -> Option<Path> {
+            self.source.recv()
         }
     }
 }
