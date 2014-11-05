@@ -32,7 +32,7 @@ impl StringInterconvertable for PushNotification {
 // Upon receiving a notification, information gets put into
 // a database which is polled upon later.
 
-pub trait NotificationSource<A> {
+pub trait NotificationSource<A> : Send {
     fn get_notification(&self) -> Option<A>;
 
     /// Returns true if processing should continue, else false
