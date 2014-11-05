@@ -1,28 +1,30 @@
 extern crate github;
 extern crate hyper;
+extern crate url;
 
 use self::hyper::HttpResult;
 use std::comm::{Receiver, SyncSender};
-use std::sync::RWLock;
-use database::Database;
+use database::{Database, StringInterconvertable};
 
 use self::github::server::{NotificationReceiver, NotificationListener,
                            ConnectionCloser};
 use self::github::notification::PushNotification;
 
 use self::hyper::{IpAddr, Port};
+use self::url::Url;
 
-pub trait Convertable<A> {
-    fn convert(self) -> A;
-}
-
-impl<A> Convertable<A> for A {
-    fn convert(self) -> A { self }
-}
-
-impl Convertable<String> for PushNotification {
-    fn convert(self) -> String {
+impl StringInterconvertable for PushNotification {
+    fn convert_to_string(&self) -> String {
         format!("{}\t{}", self.clone_url, self.branch)
+    }
+
+    fn convert_from_string(s: String) -> PushNotification {
+        let v: Vec<&str> = s.as_slice().split('\t').collect();
+        assert_eq!(v.len(), 2);
+        PushNotification {
+            clone_url: Url::parse(v[0]).unwrap(),
+            branch: v[1].to_string()
+        }
     }
 }
 
@@ -30,14 +32,14 @@ impl Convertable<String> for PushNotification {
 // Upon receiving a notification, information gets put into
 // a database which is polled upon later.
 
-pub trait NotificationSource<Rep, Not : Convertable<Rep>> {
-    fn get_notification(&self) -> Option<Not>;
+pub trait NotificationSource<A> {
+    fn get_notification(&self) -> Option<A>;
 
     /// Returns true if processing should continue, else false
-    fn notification_event_loop_step<D : Database<Rep>>(&self, db: &D) -> bool {
+    fn notification_event_loop_step<D : Database<A>>(&self, db: &D) -> bool {
         match self.get_notification() {
             Some(not) => {
-                db.add_pending(not.convert());
+                db.add_pending(not);
                 true
             },
             None => false
@@ -61,7 +63,7 @@ pub struct GitHubServer<'a> {
     send_kill_to: SyncSender<Option<PushNotification>>
 }
 
-impl NotificationSource<String, PushNotification> for RunningServer {
+impl NotificationSource<PushNotification> for RunningServer {
     fn get_notification(&self) -> Option<PushNotification> {
         self.recv.recv()
     }
@@ -105,7 +107,7 @@ impl<'a> GitHubServer<'a> {
 
 pub mod testing {
     use std::comm::Receiver;
-    use super::{NotificationSource, Convertable};
+    use super::NotificationSource;
 
     pub struct TestNotificationSource {
         source: Receiver<Option<Path>>
@@ -119,13 +121,7 @@ pub mod testing {
         }
     }
 
-    impl Convertable<String> for Path {
-        fn convert(self) -> String {
-            self.as_str().unwrap().to_string()
-        }
-    }
-
-    impl NotificationSource<String, Path> for TestNotificationSource {
+    impl NotificationSource<Path> for TestNotificationSource {
         fn get_notification(&self) -> Option<Path> {
             self.source.recv()
         }

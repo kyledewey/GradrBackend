@@ -12,6 +12,21 @@ use builder::BuildResult;
 
 static TABLE_NAME : &'static str = "tbl";
 
+pub trait StringInterconvertable {
+    fn convert_to_string(&self) -> String;
+    fn convert_from_string(s: String) -> Self;
+}
+
+impl StringInterconvertable for Path {
+    fn convert_to_string(&self) -> String {
+        self.as_str().unwrap().to_string()
+    }
+
+    fn convert_from_string(s: String) -> Path {
+        Path::new(s)
+    }
+}
+
 /// Type A is some key
 pub trait Database<A> : Sync + Send {
     fn add_pending(&self, entry: A);
@@ -82,19 +97,22 @@ mod sql_db_helpers {
     }
 }
 
-impl<T : SqlDatabaseInterface + Send + Sync> Database<String> for T {
-    fn add_pending(&self, entry: String) {
+impl<T : SqlDatabaseInterface + Send + Sync, E : StringInterconvertable>
+    Database<E> for T {
+    fn add_pending(&self, entry: E) {
         self.execute_query(
             format!("INSERT INTO {} VALUES (\"{}\", {}, NULL)",
-                    TABLE_NAME, entry, Pending.to_int()).as_slice());
+                    TABLE_NAME,
+                    entry.convert_to_string(),
+                    Pending.to_int()).as_slice());
     }
 
-    fn get_pending(&self) -> Option<String> {
+    fn get_pending(&self) -> Option<E> {
         loop {
             match sql_db_helpers::get_candidate_entry(self) {
                 Some(entry) => {
                     if sql_db_helpers::try_lock_entry(self, &entry) {
-                        return Some(entry);
+                        return Some(StringInterconvertable::convert_from_string(entry));
                     }
                 }
                 None => { return None; }
@@ -102,21 +120,21 @@ impl<T : SqlDatabaseInterface + Send + Sync> Database<String> for T {
         }
     }
 
-    fn add_test_results(&self, entry: String, results: BuildResult) {
+    fn add_test_results(&self, entry: E, results: BuildResult) {
         let num_changed = 
             self.execute_query(
                 format!("UPDATE {} SET status = {}, results = \"{}\" WHERE entry = \"{}\"",
                         TABLE_NAME,
                         Done.to_int(),
                         results.to_string(),
-                        entry).as_slice());
+                        entry.convert_to_string()).as_slice());
         assert_eq!(num_changed, 1);
     }
 
-    fn results_for_entry(&self, entry: String) -> Option<String> {
+    fn results_for_entry(&self, entry: E) -> Option<String> {
         self.read_one_string(
             format!("SELECT results FROM {} WHERE entry = \"{}\"",
-                    TABLE_NAME, entry).as_slice())
+                    TABLE_NAME, entry.convert_to_string()).as_slice())
     }
 
 }    
@@ -130,10 +148,15 @@ pub mod testing {
     use builder::BuildResult;
     use super::Database;
 
+    #[deriving(PartialEq, Eq, Hash)]
+    struct PathWrapper {
+        path: Path
+    }
+
     /// Simply a directory to a status.
     pub struct TestDatabase {
-        pending: Queue<String>,
-        results: RWLock<HashMap<String, BuildResult>>,
+        pending: Queue<Path>,
+        results: RWLock<HashMap<PathWrapper, BuildResult>>,
     }
 
     impl TestDatabase {
@@ -145,23 +168,30 @@ pub mod testing {
         }
     }
 
-    impl Database<String> for TestDatabase {
-        fn add_pending(&self, entry: String) {
+    impl Equiv<PathWrapper> for PathWrapper {
+        fn equiv(&self, other: &PathWrapper) -> bool {
+            self.path.eq(&other.path)
+        }
+    }
+
+    impl Database<Path> for TestDatabase {
+        fn add_pending(&self, entry: Path) {
             self.pending.push(entry);
         }
 
-        fn get_pending(&self) -> Option<String> {
+        fn get_pending(&self) -> Option<Path> {
             self.pending.pop()
         }
         
-        fn add_test_results(&self, entry: String, results: BuildResult) {
+        fn add_test_results(&self, entry: Path, results: BuildResult) {
             let mut val = self.results.write();
-            val.insert(entry, results);
+            val.insert(PathWrapper { path: entry }, results);
             val.downgrade();
         }
 
-        fn results_for_entry(&self, entry: String) -> Option<String> {
-            self.results.read().find_equiv(&entry).map(|res| res.to_string())
+        fn results_for_entry(&self, entry: Path) -> Option<String> {
+            self.results.read().find_equiv(
+                &PathWrapper { path: entry }).map(|res| res.to_string())
         }
     }
 }
@@ -280,14 +310,18 @@ pub mod tests {
 
     static KEY : &'static str = "foobar";
 
-    fn add_get_pending<D : Database<String>>(db: &D) {
-        db.add_pending(KEY.to_string());
-        assert_eq!(db.get_pending(), Some(KEY.to_string()));
+    fn add_get_pending<D : Database<Path>>(db: &D) {
+        db.add_pending(Path::new(KEY));
+        let actual = db.get_pending().and_then(|pending| {
+            pending.as_str().map(|s| s.to_string())
+        });
+        let expected = Path::new(KEY).as_str().map(|s| s.to_string());
+        assert_eq!(actual, expected);
     }
 
-    fn add_test_results<D : Database<String>>(db: &D) {
+    fn add_test_results<D : Database<Path>>(db: &D) {
         add_get_pending(db);
-        db.add_test_results(KEY.to_string(),
+        db.add_test_results(Path::new(KEY),
                             TestSuccess(HashMap::new()));
     }
         

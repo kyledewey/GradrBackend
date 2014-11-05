@@ -22,11 +22,10 @@ pub fn worker_loop_step<B : WholeBuildable, A : ToWholeBuildable<B>, C : Databas
 pub mod testing {
     use builder::ToWholeBuildable;
     use builder::testing::TestingRequest;
-    use notification_listener::Convertable;
 
-    impl ToWholeBuildable<TestingRequest> for String {
+    impl ToWholeBuildable<TestingRequest> for Path {
         fn to_whole_buildable(&self) -> TestingRequest {
-            TestingRequest::new(Path::new(self.as_slice()), Path::new("test/makefile"))
+            TestingRequest::new(self.clone(), Path::new("test/makefile"))
         }
     }
 }
