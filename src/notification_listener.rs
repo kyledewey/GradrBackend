@@ -70,14 +70,20 @@ impl NotificationSource<PushNotification> for RunningServer {
 }
 
 pub struct RunningServer {
-    close: ConnectionCloser,
+    closer: ConnectionCloser,
     recv: Receiver<Option<PushNotification>>,
     send_kill_to: SyncSender<Option<PushNotification>>
 }
 
 impl RunningServer {
     pub fn send_finish(&self) {
-        self.send_kill_to.send(None)
+        self.send_kill_to.send(None);
+    }
+}
+
+impl Drop for RunningServer {
+    fn drop(&mut self) {
+        self.closer.close();
     }
 }
 
@@ -98,7 +104,7 @@ impl<'a> GitHubServer<'a> {
         let send_kill = self.send_kill_to;
         let close = try!(self.conn.event_loop());
         Ok(RunningServer {
-            close: close,
+            closer: close,
             recv: recv,
             send_kill_to: send_kill
         })

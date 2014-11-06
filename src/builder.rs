@@ -263,9 +263,9 @@ pub mod github {
 
     impl Drop for GitHubRequest {
         fn drop(&mut self) {
-//             let mut c = Command::new("rm");
-//             c.arg("-rf").arg(self.testing_req.dir.as_str().unwrap_msg(line!()));
-//             run_command(&c, None, ());
+            let mut c = Command::new("rm");
+            c.arg("-rf").arg(self.testing_req.dir.as_str().unwrap_msg(line!()));
+            run_command(&c, None, ());
         }
     }
 }
@@ -388,13 +388,13 @@ pub mod testing {
         /// along with any applicable executables (namely `a.out`)
         #[allow(unused_must_use)]
         fn drop(&mut self) {
-//             let dir = self.dir.as_str().unwrap_msg(line!());
-//             run_command(
-//                 &*Command::new("rm")
-//                     .arg(format!("{}/makefile", dir))
-//                     .arg(format!("{}/a.out", dir)),
-//                 None,
-//                 ());
+            let dir = self.dir.as_str().unwrap_msg(line!());
+            run_command(
+                &*Command::new("rm")
+                    .arg(format!("{}/makefile", dir))
+                    .arg(format!("{}/a.out", dir)),
+                None,
+                ());
         }
     }
 

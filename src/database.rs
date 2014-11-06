@@ -203,7 +203,7 @@ pub mod sqlite {
 
     impl SqliteDatabase {
         pub fn new() -> SqliteResult<SqliteDatabase> {
-            let mut db = try!(sqlite3::open("data.db"));
+            let mut db = try!(sqlite3::open(":memory:"));
 
             try!(
                 db.exec(

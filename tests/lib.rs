@@ -5,6 +5,7 @@ extern crate url;
 
 use std::comm::sync_channel;
 use std::io::timer;
+use std::rc::Rc;
 use std::sync::{Arc, RWLock};
 use std::time::Duration;
 
@@ -13,7 +14,8 @@ use gradr_backend::builder::{WholeBuildable, ToWholeBuildable};
 use gradr_backend::database::Database;
 use gradr_backend::database::sqlite::SqliteDatabase;
 use gradr_backend::database::testing::TestDatabase;
-use gradr_backend::notification_listener::{NotificationSource, GitHubServer};
+use gradr_backend::notification_listener::{NotificationSource, GitHubServer,
+                                           RunningServer};
 use gradr_backend::notification_listener::testing::TestNotificationSource;
 use gradr_backend::worker::worker_loop_step;
 
@@ -30,8 +32,11 @@ fn end_to_end<B : WholeBuildable, E : ToWholeBuildable<B>, D : Database<E>, N : 
     not_src: N,
     to_send: Vec<E>,
     sender: |E| -> (),
-    stop_all: || -> (),
+    stop_not: fn (&N) -> (),
+    stop_clo: || -> (),
     checker: |&D| -> bool) { // returns true if it expects more results
+
+    let len = to_send.len();
 
     let done1 = Arc::new(RWLock::new(false));
     let done2 = done1.clone();
@@ -41,7 +46,12 @@ fn end_to_end<B : WholeBuildable, E : ToWholeBuildable<B>, D : Database<E>, N : 
     let db3 = db1.clone();
     
     spawn(proc() {
-        while not_src.notification_event_loop_step(&*db1) {}
+        let mut temp = not_src;
+        for _ in range(0, len) {
+            let res = (&temp).notification_event_loop_step(&*db1);
+            assert!(res);
+        }
+        stop_not(&temp);
     });
 
     spawn(proc() {
@@ -54,11 +64,11 @@ fn end_to_end<B : WholeBuildable, E : ToWholeBuildable<B>, D : Database<E>, N : 
         sender(e);
     }
 
-    stop_all();
+    stop_clo();
 
     let mut success = false;
 
-    for _ in range(0, 3000u) {
+    for _ in range(0, 600u) {
         timer::sleep(Duration::milliseconds(10));
         if !checker(&*db3) {
             success = true;
@@ -80,7 +90,10 @@ fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
     let sender = |path: Path| {
         notification_sender.send(Some(path));
     };
-    let stop_all = || {
+    
+    fn stop_not(n: &TestNotificationSource) {}
+
+    let stop_clo = || {
         notification_sender.send(None);
     };
     let checker = |db: &A| {
@@ -94,12 +107,13 @@ fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
         }
     };
 
-    end_to_end(db, not_src, to_send, sender, stop_all, checker);
+    end_to_end(db, not_src, to_send, sender, stop_not, stop_clo, checker);
 }
 
 fn end_to_end_github_not_source<A : Database<PushNotification>>(db: A, port: Port) {
     let server = GitHubServer::new(ADDR, port);
     let not_src = server.event_loop().unwrap_msg(line!());
+
     let not1 = 
         PushNotification {
             clone_url: Url::parse("https://github.com/scalableinternetservices/GradrBackend.git").unwrap_msg(line!()),
@@ -110,9 +124,14 @@ fn end_to_end_github_not_source<A : Database<PushNotification>>(db: A, port: Por
     let sender = |not: PushNotification| {
         send_to_server(SendPush(not).to_string().as_slice(), ADDR, port)
     };
-    let stop_all = || {
-        //not_src1.wrapped.send_finish()
-    };
+
+    fn stop_not(n: &RunningServer) {
+        n.send_finish();
+    }
+
+    let stop_clo = || { };
+
+
     let checker = |db: &A| {
         let not2 = 
             PushNotification {
@@ -130,7 +149,7 @@ fn end_to_end_github_not_source<A : Database<PushNotification>>(db: A, port: Por
         }
     };
 
-    end_to_end(db, not_src, to_send, sender, stop_all, checker);
+    end_to_end(db, not_src, to_send, sender, stop_not, stop_clo, checker);
 }
 
 //#[test]
