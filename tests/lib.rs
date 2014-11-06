@@ -5,7 +5,6 @@ extern crate url;
 
 use std::comm::sync_channel;
 use std::io::timer;
-use std::rc::Rc;
 use std::sync::{Arc, RWLock};
 use std::time::Duration;
 
@@ -46,12 +45,11 @@ fn end_to_end<B : WholeBuildable, E : ToWholeBuildable<B>, D : Database<E>, N : 
     let db3 = db1.clone();
     
     spawn(proc() {
-        let mut temp = not_src;
         for _ in range(0, len) {
-            let res = (&temp).notification_event_loop_step(&*db1);
+            let res = not_src.notification_event_loop_step(&*db1);
             assert!(res);
         }
-        stop_not(&temp);
+        stop_not(&not_src);
     });
 
     spawn(proc() {
@@ -91,7 +89,7 @@ fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
         notification_sender.send(Some(path));
     };
     
-    fn stop_not(n: &TestNotificationSource) {}
+    fn stop_not(_: &TestNotificationSource) {}
 
     let stop_clo = || {
         notification_sender.send(None);

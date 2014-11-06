@@ -191,7 +191,6 @@ pub mod github {
     extern crate github;
 
     use std::io::Command;
-    use std::path::posix::StrComponents;
 
     use self::github::notification::PushNotification;
     use self::url::Url;
@@ -262,6 +261,7 @@ pub mod github {
     }
 
     impl Drop for GitHubRequest {
+        #[allow(unused_must_use)]
         fn drop(&mut self) {
             let mut c = Command::new("rm");
             c.arg("-rf").arg(self.testing_req.dir.as_str().unwrap_msg(line!()));
