@@ -9,7 +9,7 @@ authors = ["Kyle Dewey <kyledewey@cs.ucsb.edu>"]
 git = "https://github.com/linuxfood/rustsqlite"
 
 [dependencies.postgres]
-git = "https://github.com/kyledewey/rust-postgres"
+git = "https://github.com/sfackler/rust-postgres.git"
 
 [dependencies.rust_github]
 git = "https://github.com/kyledewey/rust-github.git"
