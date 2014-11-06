@@ -277,12 +277,12 @@ mod process_tests {
 
     use util::MessagingUnwrapper;
 
-    //#[test]
+    #[test]
     fn echo_ok() {
         assert!(run_command(&*Command::new("echo").arg("foobar"), None, ()).is_ok());
     }
     
-    //#[test]
+    #[test]
     fn false_ok() {
         assert!(run_command(&Command::new("false"), None, ()).is_err());
     }
@@ -297,7 +297,7 @@ mod process_tests {
             }).collect()
     }
             
-    //#[test]
+    #[test]
     fn output_single_line_read() {
         let lines = output_from_command(
             &*Command::new("sh").arg("-c").arg("echo foobar"));
@@ -305,7 +305,7 @@ mod process_tests {
         assert_eq!(lines[0].as_slice(), "foobar");
     }
 
-    //#[test]
+    #[test]
     fn output_multi_line_read() {
         let lines = output_from_command(
             &*Command::new("sh").arg("-c").arg("echo foo; echo bar"));
@@ -321,27 +321,27 @@ mod parse_tests {
 
     use util::MessagingUnwrapper;
 
-    //#[test]
+    #[test]
     fn parse_test_pass() {
         let res = parse_test_result("PASS");
         assert!(res.is_ok());
         assert_eq!(res.unwrap_msg(line!()), Pass);
     }
 
-    //#[test]
+    #[test]
     fn parse_test_fail() {
         let res = parse_test_result("FAIL");
         assert!(res.is_ok());
         assert_eq!(res.unwrap_msg(line!()), Fail);
     }
 
-    //#[test]
+    #[test]
     fn parse_test_bad_test() {
         let res = parse_test_result("foobar");
         assert!(res.is_err());
     }
 
-    //#[test]
+    #[test]
     fn parse_valid_test_line() {
         let res = parse_line("my test:PASS");
         assert!(res.is_ok());
@@ -350,7 +350,7 @@ mod parse_tests {
         assert_eq!(result, Pass);
     }
 
-    //#[test]
+    #[test]
     fn parse_invalid_test_line() {
         assert!(parse_line("this:is:PASS").is_err());
     }
@@ -435,26 +435,26 @@ mod build_tests {
             Path::new("test/makefile"))
     }
 
-    //#[test]
+    #[test]
     fn makefile_copy_ok() {
         assert!(req("compile_error").setup_env().is_ok());
     }
 
-    //#[test]
+    #[test]
     fn expected_compile_failure() {
         let r = req("compile_error");
         assert!(r.setup_env().is_ok());
         assert!(r.do_build().is_err());
     }
 
-    //#[test]
+    #[test]
     fn expected_compile_success() {
         let r = req("compile_success");
         assert!(r.setup_env().is_ok());
         assert!(r.do_build().is_ok());
     }
 
-    //#[test]
+    #[test]
     fn testing_parsing_empty_success() {
         let r = req("testing_parsing_empty_success");
         assert!(r.setup_env().is_ok());
@@ -464,7 +464,7 @@ mod build_tests {
         assert_eq!(res.unwrap_msg(line!()).len(), 0);
     }
 
-    //#[test]
+    #[test]
     fn testing_parsing_nonempty_success() {
         let r = req("testing_parsing_nonempty_success");
         assert!(r.setup_env().is_ok());
@@ -484,7 +484,7 @@ mod build_tests {
         assert_eq!(t2.unwrap_msg(line!()), &Fail);
     }
 
-    //#[test]
+    #[test]
     fn test_whole_build() {
         match req("test_whole_build").whole_build() {
             TestSuccess(u) => {

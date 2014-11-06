@@ -315,22 +315,22 @@ pub mod tests {
                             TestSuccess(HashMap::new()));
     }
         
-    //#[test]
+    #[test]
     fn memory_add_get_pending() {
         add_get_pending(&TestDatabase::<Path>::new());
     }
 
-    //#[test]
+    #[test]
     fn memory_add_test_results() {
         add_test_results(&TestDatabase::<Path>::new());
     }
 
-    //#[test]
+    #[test]
     fn sqlite_add_get_pending() {
         add_get_pending(&SqliteDatabase::new().unwrap());
     }
 
-    //#[test]
+    #[test]
     fn sqlite_add_test_results() {
         add_test_results(&SqliteDatabase::new().unwrap());
     }

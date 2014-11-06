@@ -152,21 +152,19 @@ fn end_to_end_github_not_source<A : Database<PushNotification>>(db: A, port: Por
     end_to_end(db, not_src, to_send, sender, stop_not, stop_clo, checker);
 }
 
-//#[test]
+#[test]
 fn end_to_end_test_not_source_in_memory() {
     end_to_end_test_not_source(TestDatabase::<Path>::new());
 }
 
-//#[test]
+#[test]
 fn end_to_end_test_not_source_sqlite() {
     end_to_end_test_not_source(SqliteDatabase::new().unwrap_msg(line!()));
 }
 
-// #[test]
-// fn end_to_end_github_not_source_in_memory() {
-//     end_to_end_github_not_source(TestDatabase::<PushNotification>::new(), 12345);
-// }
 
+// NOTE: can only run one of these at a time, because they all work off of the same
+// build directory
 #[test]
 fn end_to_end_github_not_source_sqlite() {
     end_to_end_github_not_source(SqliteDatabase::new().unwrap_msg(line!()), 12346);
