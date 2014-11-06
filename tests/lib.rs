@@ -144,10 +144,10 @@ fn end_to_end_test_not_source_sqlite() {
 
 #[test]
 fn end_to_end_github_not_source_in_memory() {
-    end_to_end_github_not_source(TestDatabase::new());
+    end_to_end_github_not_source(TestDatabase::new(), 12345);
 }
 
 #[test]
 fn end_to_end_github_not_source_sqlite() {
-    end_to_end_github_not_source(SqliteDatabase::new().unwrap());
+    end_to_end_github_not_source(SqliteDatabase::new().unwrap(), 12346);
 }
