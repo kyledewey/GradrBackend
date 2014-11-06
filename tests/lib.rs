@@ -96,13 +96,13 @@ fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
     end_to_end(db, not_src, to_send, sender, stop_all, checker);
 }
 
-fn end_to_end_test_github_source<A : Database<PushNotification>>(db: A, port: Port) {
+fn end_to_end_github_not_source<A : Database<PushNotification>>(db: A, port: Port) {
     let server = GitHubServer::new(ADDR, port);
     let not_src = server.event_loop().unwrap();
     let not1 = 
         PushNotification {
             clone_url: Url::parse("https://github.com/scalableinternetservices/GradrBackend.git").unwrap(),
-            branch: "master".to_string()
+            branch: "testing".to_string()
         };
 
     let to_send = vec!(not1);
@@ -138,6 +138,16 @@ fn end_to_end_test_not_source_in_memory() {
 }
 
 #[test]
-fn end_to_end_sqlite() {
+fn end_to_end_test_not_source_sqlite() {
     end_to_end_test_not_source(SqliteDatabase::new().unwrap());
+}
+
+#[test]
+fn end_to_end_github_not_source_in_memory() {
+    end_to_end_github_not_source(TestDatabase::new());
+}
+
+#[test]
+fn end_to_end_github_not_source_sqlite() {
+    end_to_end_github_not_source(SqliteDatabase::new().unwrap());
 }
