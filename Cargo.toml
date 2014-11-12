@@ -12,10 +12,12 @@ git = "https://github.com/linuxfood/rustsqlite"
 git = "https://github.com/sfackler/rust-postgres.git"
 
 [dependencies.rust_github]
-git = "https://github.com/kyledewey/rust-github.git"
-branch = "push_notification"
+git = "https://github.com/jroesch/rust-github.git"
 
 [dependencies.url]
 name = "url"
 git = "https://github.com/servo/rust-url"
 
+[dependencies.pg_typeprovider]
+name = "pg-typeprovider"
+git  = "https://github.com/jroesch/pg-typeprovider"
