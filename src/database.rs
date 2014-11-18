@@ -184,7 +184,7 @@ pub mod testing {
         }
 
         fn results_for_entry(&self, entry: &A) -> Option<String> {
-            self.results.read().find(entry).map(|res| res.to_string())
+            self.results.read().get(entry).map(|res| res.to_string())
         }
     }
 }
