@@ -17,6 +17,9 @@ use std::io::process::{Command, Process, ExitStatus, ExitSignal,
 
 use util::MessagingUnwrapper;
 
+use self::BuildResult::{SetupEnvFailure, BuildFailure, TestFailure, TestSuccess};
+use self::TestResult::{Pass, Fail};
+
 fn spawn_with_timeout(c: &Command, timeout: Option<u64>) -> IoResult<Process> {
     let mut p = try!(c.spawn());
     p.set_timeout(timeout);
@@ -317,7 +320,8 @@ mod process_tests {
 
 #[cfg(test)]
 mod parse_tests {
-    use super::{parse_test_result, Pass, Fail, parse_line};
+    use super::TestResult::{Pass, Fail};
+    use super::{parse_test_result, parse_line};
 
     use util::MessagingUnwrapper;
 
@@ -424,7 +428,10 @@ pub mod testing {
 
 #[cfg(test)]
 mod build_tests {
-    use super::{TestSuccess, Pass, Fail, WholeBuildable};
+    use super::BuildResult::TestSuccess;
+    use super::TestResult::{Pass, Fail};
+
+    use super::WholeBuildable;
     use super::testing::TestingRequest;
 
     use util::MessagingUnwrapper;

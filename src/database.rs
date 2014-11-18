@@ -10,6 +10,8 @@
 
 use builder::BuildResult;
 
+use self::EntryStatus::{Pending, InProgress, Done};
+
 static TABLE_NAME : &'static str = "tbl";
 
 pub trait StringInterconvertable {
@@ -73,7 +75,8 @@ pub trait SqlDatabaseInterface {
 }
 
 mod sql_db_helpers {
-    use super::{SqlDatabaseInterface, TABLE_NAME, Pending, InProgress};
+    use super::{SqlDatabaseInterface, TABLE_NAME};
+    use super::EntryStatus::{Pending, InProgress};
 
     pub fn get_candidate_entry<T : SqlDatabaseInterface>(t: &T) -> Option<String> {
         t.read_one_string(
@@ -242,7 +245,7 @@ pub mod postgres {
 
     use std::sync::Mutex;
 
-    use self::postgres::{Connection, NoSsl};
+    use self::postgres::{Connection, SslMode};
 
     use super::{SqlDatabaseInterface, TABLE_NAME};
 
@@ -252,7 +255,7 @@ pub mod postgres {
     
     impl PostgresDatabase {
         pub fn new(loc: &str) -> Option<PostgresDatabase> {
-            match Connection::connect(loc, &NoSsl).ok() {
+            match Connection::connect(loc, &SslMode::None).ok() {
                 Some(db) => {
                     db.execute(
                         format!(
@@ -294,7 +297,7 @@ pub mod tests {
     use super::sqlite::SqliteDatabase;
     use super::testing::TestDatabase;
 
-    use builder::TestSuccess;
+    use builder::BuildResult::TestSuccess;
 
     use std::collections::HashMap;
 
