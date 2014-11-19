@@ -10,8 +10,10 @@ use std::time::Duration;
 
 use gradr_backend::util::MessagingUnwrapper;
 use gradr_backend::builder::{WholeBuildable, ToWholeBuildable};
-use gradr_backend::database::{Database, DatabaseEntry};
+use gradr_backend::database::{Database, DatabaseEntry, Build};
 use gradr_backend::database::testing::TestDatabase;
+use gradr_backend::database::postgres_db::PostgresDatabase;
+
 use gradr_backend::notification_listener::{NotificationSource, GitHubServer,
                                            RunningServer};
 use gradr_backend::notification_listener::testing::TestNotificationSource;
@@ -111,7 +113,7 @@ fn end_to_end_test_not_source<A : Database<Path, Path>>(db: A) {
 }
 
 #[cfg(test)]
-fn end_to_end_github_not_source<A : Database<PushNotification, PushNotification>>(db: A, port: Port) {
+fn end_to_end_github_not_source(db: PostgresDatabase, port: Port) {
     let server = GitHubServer::new(ADDR, port);
     let not_src = server.event_loop().unwrap_msg(line!());
 
@@ -133,14 +135,15 @@ fn end_to_end_github_not_source<A : Database<PushNotification, PushNotification>
     let stop_clo = || { };
 
 
-    let checker = |db: &A| {
-        let not2 = 
-            PushNotification {
-                clone_url: Url::parse("https://github.com/scalableinternetservices/GradrBackend.git").unwrap_msg(line!()),
-                branch: "testing".to_string()
-            };
+    let checker = |db: &PostgresDatabase| {
+        // HACK
+        let key = Build {
+            id: 1,
+            status: 0,
+            results: "".to_string()
+        };
 
-        match db.results_for_entry(&not2) {
+        match db.results_for_entry(&key) {
             Some(ref s) => {
                 assert!(s.contains("test1: Pass"));
                 assert!(s.contains("test2: Fail"));
@@ -161,4 +164,11 @@ fn end_to_end_test_not_source_in_memory() {
 #[test]
 fn end_to_end_github_not_source_in_memory() {
     end_to_end_github_not_source(TestDatabase::<Path>::new(), 12346);
+}
+
+#[test]
+fn end_to_end_github_not_source_postgres() {
+    end_to_end_github_not_source(
+        PostgresDatabase::new("postgres://jroesch@localhost/gradr-production").unwrap(),
+        12347);
 }

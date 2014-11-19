@@ -1,3 +1,5 @@
+#![feature(phase)]
+
 pub mod builder;
 pub mod database;
 pub mod worker;

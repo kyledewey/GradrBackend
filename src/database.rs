@@ -8,16 +8,24 @@
 // 3. Put test results into a database, given what
 //    build was pending
 
+extern crate postgres;
+#[phase(plugin)]
+extern crate pg_typeprovider;
+
+use self::postgres::{Connection, SslMode};
+
 use builder::BuildResult;
 
 use self::EntryStatus::{Pending, InProgress, Done};
 
+pg_table!(builds)
+
 pub trait DatabaseEntry<A> : Send {
-    fn get_base(&self) -> &A;
+    fn get_base(&self) -> A;
 }
 
-impl<A : Send> DatabaseEntry<A> for A {
-    fn get_base(&self) -> &A { self }
+impl<A : Send + Clone> DatabaseEntry<A> for A {
+    fn get_base(&self) -> A { self.clone() }
 }
 
 /// Type A is some key
@@ -41,7 +49,7 @@ pub enum EntryStatus {
 }
 
 impl EntryStatus {
-    fn to_int(&self) -> int {
+    fn to_int(&self) -> i32 {
         match *self {
             Pending => 0,
             InProgress => 1,
@@ -50,15 +58,14 @@ impl EntryStatus {
     }
 }
 
-/*
-pub mod postgres {
-    extern crate postgres;
-
+pub mod postgres_db {
     use std::sync::Mutex;
 
-    use self::postgres::{Connection, SslMode};
+    use super::postgres::{Connection, SslMode};
 
-    use super::Database;
+    use builder::BuildResult;
+    use super::EntryStatus::{Pending, InProgress, Done};
+    use super::{Database, DatabaseEntry, BuildInsert, Build};
 
     pub struct PostgresDatabase {
         db: Mutex<Connection>
@@ -66,15 +73,81 @@ pub mod postgres {
 
     impl PostgresDatabase {
         pub fn new(loc: &str) -> Option<PostgresDatabase> {
-            Connection::connect(loc, &SslMode::None).map(|db| {
+            Connection::connect(loc, &SslMode::None).ok().map(|db| {
                 PostgresDatabase {
                     db: Mutex::new(db)
                 }
             })
         }
     }
+
+    impl DatabaseEntry<BuildInsert> for Build {
+        fn get_base(&self) -> BuildInsert {
+            BuildInsert {
+                status: self.status,
+                results: self.results.clone()
+            }
+        }
+    }
+
+    fn get_one_build(conn: &Connection) -> Option<Build> {
+        let stmt = conn.prepare(
+            "SELECT id, status, results FROM builds LIMIT 1").unwrap();
+        for row in stmt.query([]).unwrap() {
+            return Some(Build {
+                id: row.get(0),
+                status: row.get(1),
+                results: row.get(2)
+            })
+        }
+        
+        None
+    }
+
+    // returns true if it was able to lock it, else false
+    fn try_lock_build(conn: &Connection, b: &Build) -> bool {
+        conn.execute(
+            "UPDATE builds SET status=$1 WHERE id=$2 AND status=$3",
+            &[&(&InProgress).to_int(), &b.id, &(&Pending).to_int()])
+            .unwrap() == 1
+    }
+
+    impl Database<BuildInsert, Build> for PostgresDatabase {
+        fn add_pending(&self, entry: BuildInsert) {
+            entry.insert(&*self.db.lock());
+        }
+
+        fn get_pending(&self) -> Option<Build> {
+            let conn: &Connection = &*self.db.lock();
+            loop {
+                match get_one_build(conn) {
+                    Some(b) => {
+                        if try_lock_build(conn, &b) {
+                            return Some(b);
+                        }
+                    },
+                    None => { return None; }
+                }
+            }
+        }
+
+        fn add_test_results(&self, entry: Build, results: BuildResult) {
+            self.db.lock().execute(
+                "UPDATE builds SET status=$1, results=$2 WHERE id=$3",
+                &[&(&Done).to_int(), &results.to_string(), &entry.id]);
+        }
+
+        fn results_for_entry(&self, entry: &Build) -> Option<String> {
+            let lock = self.db.lock();
+            let stmt = lock.prepare(
+                "SELECT results FROM builds WHERE id=$1").unwrap();
+            for row in stmt.query(&[&entry.id]).unwrap() {
+                return Some(row.get(0));
+            }
+            None
+        }
+    }
 }
-*/
 
 /// For integration tests.
 pub mod testing {
@@ -92,7 +165,7 @@ pub mod testing {
         results: RWLock<HashMap<A, BuildResult>>,
     }
 
-    impl<A : Eq + Send + Hash> TestDatabase<A> {
+    impl<A : Clone + Eq + Send + Hash> TestDatabase<A> {
         pub fn new<A : Eq + Send + Hash>() -> TestDatabase<A> {
             TestDatabase {
                 pending: Queue::with_capacity(10),
@@ -101,7 +174,7 @@ pub mod testing {
         }
     }
 
-    impl<A : Eq + Send + Hash> Database<A, A> for TestDatabase<A> {
+    impl<A : Clone + Eq + Send + Hash> Database<A, A> for TestDatabase<A> {
         fn add_pending(&self, entry: A) {
             self.pending.push(entry);
         }
