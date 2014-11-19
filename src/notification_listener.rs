@@ -4,7 +4,7 @@ extern crate url;
 
 use self::hyper::HttpResult;
 use std::comm::{Receiver, SyncSender};
-use database::{Database, StringInterconvertable};
+use database::Database;
 
 use self::github::server::{NotificationReceiver, NotificationListener,
                            ConnectionCloser};
@@ -12,21 +12,6 @@ use self::github::notification::PushNotification;
 
 use self::hyper::{IpAddr, Port};
 use self::url::Url;
-
-impl StringInterconvertable for PushNotification {
-    fn convert_to_string(&self) -> String {
-        format!("{}\t{}", self.clone_url, self.branch)
-    }
-
-    fn convert_from_string(s: String) -> PushNotification {
-        let v: Vec<&str> = s.as_slice().split('\t').collect();
-        assert_eq!(v.len(), 2);
-        PushNotification {
-            clone_url: Url::parse(v[0]).unwrap(),
-            branch: v[1].to_string()
-        }
-    }
-}
 
 // Listens for notifications from some external source.
 // Upon receiving a notification, information gets put into

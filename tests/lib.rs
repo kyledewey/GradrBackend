@@ -11,7 +11,6 @@ use std::time::Duration;
 use gradr_backend::util::MessagingUnwrapper;
 use gradr_backend::builder::{WholeBuildable, ToWholeBuildable};
 use gradr_backend::database::Database;
-use gradr_backend::database::sqlite::SqliteDatabase;
 use gradr_backend::database::testing::TestDatabase;
 use gradr_backend::notification_listener::{NotificationSource, GitHubServer,
                                            RunningServer};
@@ -153,17 +152,4 @@ fn end_to_end_github_not_source<A : Database<PushNotification>>(db: A, port: Por
 #[test]
 fn end_to_end_test_not_source_in_memory() {
     end_to_end_test_not_source(TestDatabase::<Path>::new());
-}
-
-#[test]
-fn end_to_end_test_not_source_sqlite() {
-    end_to_end_test_not_source(SqliteDatabase::new().unwrap_msg(line!()));
-}
-
-
-// NOTE: can only run one of these at a time, because they all work off of the same
-// build directory
-#[test]
-fn end_to_end_github_not_source_sqlite() {
-    end_to_end_github_not_source(SqliteDatabase::new().unwrap_msg(line!()), 12346);
 }

@@ -12,23 +12,6 @@ use builder::BuildResult;
 
 use self::EntryStatus::{Pending, InProgress, Done};
 
-static TABLE_NAME : &'static str = "tbl";
-
-pub trait StringInterconvertable {
-    fn convert_to_string(&self) -> String;
-    fn convert_from_string(s: String) -> Self;
-}
-
-impl StringInterconvertable for Path {
-    fn convert_to_string(&self) -> String {
-        self.as_str().unwrap().to_string()
-    }
-
-    fn convert_from_string(s: String) -> Path {
-        Path::new(s)
-    }
-}
-
 /// Type A is some key
 pub trait Database<A> : Sync + Send {
     fn add_pending(&self, entry: A);
@@ -58,90 +41,6 @@ impl EntryStatus {
         }
     }
 }
-
-// TODO: we are abstracting over SQLite3 bindings, which do not
-// provide proper parameter passing and are thus susceptible to
-// injection attacks.  We should make it so we only care about
-// Postgres.
-pub trait SqlDatabaseInterface {
-    /// Executes the given query, and returns the number of rows modified
-    /// as a result.
-    fn execute_query(&self, query: &str) -> uint;
-
-    /// Reads a textual column from a query which is expected to
-    /// return one text column, and at most one row.  Returns None if
-    /// there were no rows returned.
-    fn read_one_string(&self, query: &str) -> Option<String>;
-}
-
-mod sql_db_helpers {
-    use super::{SqlDatabaseInterface, TABLE_NAME};
-    use super::EntryStatus::{Pending, InProgress};
-
-    pub fn get_candidate_entry<T : SqlDatabaseInterface>(t: &T) -> Option<String> {
-        t.read_one_string(
-            format!("SELECT entry FROM {} WHERE status = {} LIMIT 1",
-                    TABLE_NAME, Pending.to_int()).as_slice())
-    }
-
-    pub fn try_lock_entry<T : SqlDatabaseInterface>(t: &T, entry: &String) -> bool {
-        let num_changed = 
-            t.execute_query(
-                format!("UPDATE {} SET status = {} WHERE entry = \"{}\" AND status = {}",
-                        TABLE_NAME,
-                        InProgress.to_int(),
-                        entry,
-                        Pending.to_int()).as_slice());
-        match num_changed {
-            0 => false,
-            1 => true,
-            _ => { assert!(false); false }
-        }
-    }
-}
-
-impl<T : SqlDatabaseInterface + Send + Sync, E : StringInterconvertable>
-    Database<E> for T {
-    fn add_pending(&self, entry: E) {
-        self.execute_query(
-            format!("INSERT INTO {} VALUES (\"{}\", {}, NULL)",
-                    TABLE_NAME,
-                    entry.convert_to_string(),
-                    Pending.to_int()).as_slice());
-    }
-
-    fn get_pending(&self) -> Option<E> {
-        loop {
-            match sql_db_helpers::get_candidate_entry(self) {
-                Some(entry) => {
-                    if sql_db_helpers::try_lock_entry(self, &entry) {
-                        return Some(StringInterconvertable::convert_from_string(entry));
-                    }
-                }
-                None => { return None; }
-            }
-        }
-    }
-
-    fn add_test_results(&self, entry: E, results: BuildResult) {
-        let num_changed = 
-            self.execute_query(
-                format!("UPDATE {} SET status = {}, results = \"{}\" WHERE entry = \"{}\"",
-                        TABLE_NAME,
-                        Done.to_int(),
-                        results.to_string(),
-                        entry.convert_to_string()).as_slice());
-        assert_eq!(num_changed, 1);
-    }
-
-    fn results_for_entry(&self, entry: &E) -> Option<String> {
-        let query = 
-            format!("SELECT results FROM {} WHERE entry = \"{}\"",
-                    TABLE_NAME, entry.convert_to_string());
-        self.read_one_string(query.as_slice())
-    }
-
-}    
 
 /// For integration tests.
 pub mod testing {
@@ -189,112 +88,9 @@ pub mod testing {
     }
 }
 
-pub mod sqlite {
-    extern crate sqlite3;
-
-    use std::sync::Mutex;
-
-    use self::sqlite3::types::SqliteResult;
-    use self::sqlite3::types::{SQLITE_ROW, SQLITE_DONE};
-    use self::sqlite3::database::Database as SqliteDatabaseInternal;
-
-    use super::{SqlDatabaseInterface, TABLE_NAME};
-
-    pub struct SqliteDatabase {
-        db: Mutex<SqliteDatabaseInternal>
-    }
-
-    impl SqliteDatabase {
-        pub fn new() -> SqliteResult<SqliteDatabase> {
-            let mut db = try!(sqlite3::open(":memory:"));
-
-            try!(
-                db.exec(
-                    format!(
-                        "CREATE TABLE {}(entry TEXT PRIMARY KEY, status INTEGER NOT NULL, results Text)",
-                        TABLE_NAME).as_slice()));
-            Ok(SqliteDatabase { db: Mutex::new(db) })
-        }
-    }
-
-    impl SqlDatabaseInterface for SqliteDatabase {
-        fn execute_query(&self, query: &str) -> uint {
-            let mut lock = self.db.lock();
-            lock.exec(query).ok().expect(query);
-            lock.get_changes().to_uint().unwrap()
-        }
-
-        fn read_one_string(&self, query: &str) -> Option<String> {
-            let lock = self.db.lock();
-            let mut cursor = lock.prepare(query, &None).ok().expect("TWO");
-            let step_one = cursor.step();
-            if step_one == SQLITE_ROW {
-                let op_text = cursor.get_text(0).map(|s| s.to_string());
-                let step_two = cursor.step();
-                assert_eq!(step_two, SQLITE_DONE);
-                op_text
-            } else {
-                None
-            }
-        }
-    }
-}
-
-pub mod postgres {
-    extern crate postgres;
-
-    use std::sync::Mutex;
-
-    use self::postgres::{Connection, SslMode};
-
-    use super::{SqlDatabaseInterface, TABLE_NAME};
-
-    pub struct PostgresDatabase {
-        db: Mutex<Connection>
-    }
-    
-    impl PostgresDatabase {
-        pub fn new(loc: &str) -> Option<PostgresDatabase> {
-            match Connection::connect(loc, &SslMode::None).ok() {
-                Some(db) => {
-                    db.execute(
-                        format!(
-                            "CREATE TABLE {}(entry TEXT PRIMARY KEY, status INTEGER NOT NULL, results Text)",
-                            TABLE_NAME).as_slice(), []).unwrap();
-                    Some(PostgresDatabase { db: Mutex::new(db) })
-                },
-                None => None
-            }
-        }
-    }
-
-    impl SqlDatabaseInterface for PostgresDatabase {
-        fn execute_query(&self, query: &str) -> uint {
-            self.db.lock().execute(query, []).unwrap()
-        }
-
-        fn read_one_string(&self, query: &str) -> Option<String> {
-            let lock = self.db.lock();
-            let stmt = lock.prepare(query).unwrap();
-            let mut rows = stmt.query([]).unwrap();
-            let op_row_one = rows.next();
-
-            match op_row_one {
-                Some(ref row) => {
-                    let op_row_two = rows.next();
-                    assert!(op_row_two.is_none());
-                    Some(row.get(0))
-                },
-                None => None
-            }
-        }
-    }
-}
-        
 #[cfg(test)]
 pub mod tests {
     use super::Database;
-    use super::sqlite::SqliteDatabase;
     use super::testing::TestDatabase;
 
     use builder::BuildResult::TestSuccess;
@@ -326,15 +122,5 @@ pub mod tests {
     #[test]
     fn memory_add_test_results() {
         add_test_results(&TestDatabase::<Path>::new());
-    }
-
-    #[test]
-    fn sqlite_add_get_pending() {
-        add_get_pending(&SqliteDatabase::new().unwrap());
-    }
-
-    #[test]
-    fn sqlite_add_test_results() {
-        add_test_results(&SqliteDatabase::new().unwrap());
     }
 }
