@@ -4,7 +4,7 @@ extern crate url;
 
 use self::hyper::HttpResult;
 use std::comm::{Receiver, SyncSender};
-use database::Database;
+use database::{Database, DatabaseEntry};
 
 use self::github::server::{NotificationReceiver, NotificationListener,
                            ConnectionCloser};
@@ -21,7 +21,7 @@ pub trait NotificationSource<A> : Send {
     fn get_notification(&self) -> Option<A>;
 
     /// Returns true if processing should continue, else false
-    fn notification_event_loop_step<D : Database<A>>(&self, db: &D) -> bool {
+    fn notification_event_loop_step<B : DatabaseEntry<A>, D : Database<A, B>>(&self, db: &D) -> bool {
         match self.get_notification() {
             Some(not) => {
                 db.add_pending(not);

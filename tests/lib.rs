@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use gradr_backend::util::MessagingUnwrapper;
 use gradr_backend::builder::{WholeBuildable, ToWholeBuildable};
-use gradr_backend::database::Database;
+use gradr_backend::database::{Database, DatabaseEntry};
 use gradr_backend::database::testing::TestDatabase;
 use gradr_backend::notification_listener::{NotificationSource, GitHubServer,
                                            RunningServer};
@@ -23,9 +23,11 @@ use self::github::notification::PushNotification;
 use self::url::Url;
 use self::hyper::{IpAddr, Ipv4Addr, Port};
 
+#[cfg(test)]
 static ADDR: IpAddr = Ipv4Addr(127, 0, 0, 1);
 
-fn end_to_end<B : WholeBuildable, E : ToWholeBuildable<B>, D : Database<E>, N : NotificationSource<E>>(
+#[cfg(test)]
+fn end_to_end<B : WholeBuildable, E : ToWholeBuildable<B>, D : Database<E, F>, N : NotificationSource<E>, F : DatabaseEntry<E>>(
     db: D,
     not_src: N,
     to_send: Vec<E>,
@@ -80,7 +82,8 @@ fn end_to_end<B : WholeBuildable, E : ToWholeBuildable<B>, D : Database<E>, N : 
     assert!(success);
 }
 
-fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
+#[cfg(test)]
+fn end_to_end_test_not_source<A : Database<Path, Path>>(db: A) {
     let (notification_sender, notification_recv) = sync_channel(10);
     let not_src = TestNotificationSource::new(notification_recv);
     let to_send = vec!(Path::new("test/end_to_end"));
@@ -107,7 +110,8 @@ fn end_to_end_test_not_source<A : Database<Path>>(db: A) {
     end_to_end(db, not_src, to_send, sender, stop_not, stop_clo, checker);
 }
 
-fn end_to_end_github_not_source<A : Database<PushNotification>>(db: A, port: Port) {
+#[cfg(test)]
+fn end_to_end_github_not_source<A : Database<PushNotification, PushNotification>>(db: A, port: Port) {
     let server = GitHubServer::new(ADDR, port);
     let not_src = server.event_loop().unwrap_msg(line!());
 
@@ -152,4 +156,9 @@ fn end_to_end_github_not_source<A : Database<PushNotification>>(db: A, port: Por
 #[test]
 fn end_to_end_test_not_source_in_memory() {
     end_to_end_test_not_source(TestDatabase::<Path>::new());
+}
+
+#[test]
+fn end_to_end_github_not_source_in_memory() {
+    end_to_end_github_not_source(TestDatabase::<Path>::new(), 12346);
 }

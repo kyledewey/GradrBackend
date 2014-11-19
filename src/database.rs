@@ -12,18 +12,26 @@ use builder::BuildResult;
 
 use self::EntryStatus::{Pending, InProgress, Done};
 
+pub trait DatabaseEntry<A> : Send {
+    fn get_base(&self) -> &A;
+}
+
+impl<A : Send> DatabaseEntry<A> for A {
+    fn get_base(&self) -> &A { self }
+}
+
 /// Type A is some key
-pub trait Database<A> : Sync + Send {
+pub trait Database<A, B : DatabaseEntry<A>> : Sync + Send {
     fn add_pending(&self, entry: A);
 
     /// Optionally gets a pending build from the database.
     /// If `Some` is returned, it will not be returned again.
     /// If `None` is returned, it is expected that the caller will sleep.
-    fn get_pending(&self) -> Option<A>;
+    fn get_pending(&self) -> Option<B>;
 
-    fn add_test_results(&self, entry: A, results: BuildResult);
+    fn add_test_results(&self, entry: B, results: BuildResult);
 
-    fn results_for_entry(&self, entry: &A) -> Option<String>;
+    fn results_for_entry(&self, entry: &B) -> Option<String>;
 }
 
 pub enum EntryStatus {
@@ -42,6 +50,32 @@ impl EntryStatus {
     }
 }
 
+/*
+pub mod postgres {
+    extern crate postgres;
+
+    use std::sync::Mutex;
+
+    use self::postgres::{Connection, SslMode};
+
+    use super::Database;
+
+    pub struct PostgresDatabase {
+        db: Mutex<Connection>
+    }
+
+    impl PostgresDatabase {
+        pub fn new(loc: &str) -> Option<PostgresDatabase> {
+            Connection::connect(loc, &SslMode::None).map(|db| {
+                PostgresDatabase {
+                    db: Mutex::new(db)
+                }
+            })
+        }
+    }
+}
+*/
+
 /// For integration tests.
 pub mod testing {
     use std::collections::HashMap;
@@ -50,7 +84,7 @@ pub mod testing {
     use std::sync::RWLock;
 
     use builder::BuildResult;
-    use super::Database;
+    use super::{Database, DatabaseEntry};
 
     /// Simply a directory to a status.
     pub struct TestDatabase<A> {
@@ -67,7 +101,7 @@ pub mod testing {
         }
     }
 
-    impl<A : Eq + Send + Hash> Database<A> for TestDatabase<A> {
+    impl<A : Eq + Send + Hash> Database<A, A> for TestDatabase<A> {
         fn add_pending(&self, entry: A) {
             self.pending.push(entry);
         }
@@ -99,7 +133,7 @@ pub mod tests {
 
     static KEY : &'static str = "foobar";
             
-    fn add_get_pending<D : Database<Path>>(db: &D) {
+    fn add_get_pending<D : Database<Path, Path>>(db: &D) {
         db.add_pending(Path::new(KEY));
         let actual = db.get_pending().and_then(|pending| {
             pending.as_str().map(|s| s.to_string())
@@ -108,7 +142,7 @@ pub mod tests {
         assert_eq!(actual, expected);
     }
 
-    fn add_test_results<D : Database<Path>>(db: &D) {
+    fn add_test_results<D : Database<Path, Path>>(db: &D) {
         add_get_pending(db);
         db.add_test_results(Path::new(KEY),
                             TestSuccess(HashMap::new()));
