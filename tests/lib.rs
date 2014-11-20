@@ -15,7 +15,7 @@ use gradr_backend::database::testing::TestDatabase;
 use gradr_backend::database::postgres_db::PostgresDatabase;
 
 use gradr_backend::notification_listener::{NotificationSource, GitHubServer,
-                                           RunningServer};
+                                           RunningServer, AsDatabaseInput};
 use gradr_backend::notification_listener::testing::TestNotificationSource;
 use gradr_backend::worker::worker_loop_step;
 
@@ -29,14 +29,14 @@ use self::hyper::{IpAddr, Ipv4Addr, Port};
 static ADDR: IpAddr = Ipv4Addr(127, 0, 0, 1);
 
 #[cfg(test)]
-fn end_to_end<B : WholeBuildable, E : ToWholeBuildable<B>, D : Database<E, F>, N : NotificationSource<E>, F : DatabaseEntry<E>>(
-    db: D,
-    not_src: N,
-    to_send: Vec<E>,
-    sender: |E| -> (),
-    stop_not: fn (&N) -> (),
+fn end_to_end<A : WholeBuildable, DBIn : ToWholeBuildable<A>, NotIn : AsDatabaseInput<DBIn>, DBOut : DatabaseEntry<DBIn>, DB : Database<DBIn, DBOut>, Not : NotificationSource<DBIn, NotIn>>(
+    db: DB,
+    not_src: Not,
+    to_send: Vec<NotIn>,
+    sender: |NotIn| -> (),
+    stop_not: fn (&Not) -> (),
     stop_clo: || -> (),
-    checker: |&D| -> bool) { // returns true if it expects more results
+    checker: |&DB| -> bool) { // returns true if it expects more results
 
     let len = to_send.len();
 
@@ -71,6 +71,7 @@ fn end_to_end<B : WholeBuildable, E : ToWholeBuildable<B>, D : Database<E, F>, N
 
     for _ in range(0, 600u) {
         timer::sleep(Duration::milliseconds(10));
+
         if !checker(&*db3) {
             success = true;
             break;
@@ -140,6 +141,8 @@ fn end_to_end_github_not_source(db: PostgresDatabase, port: Port) {
         let key = Build {
             id: 1,
             status: 0,
+            clone_url: "".to_string(),
+            branch: "".to_string(),
             results: "".to_string()
         };
 
@@ -156,15 +159,18 @@ fn end_to_end_github_not_source(db: PostgresDatabase, port: Port) {
     end_to_end(db, not_src, to_send, sender, stop_not, stop_clo, checker);
 }
 
+
 #[test]
 fn end_to_end_test_not_source_in_memory() {
     end_to_end_test_not_source(TestDatabase::<Path>::new());
 }
 
+/*
 #[test]
 fn end_to_end_github_not_source_in_memory() {
     end_to_end_github_not_source(TestDatabase::<Path>::new(), 12346);
 }
+*/
 
 #[test]
 fn end_to_end_github_not_source_postgres() {

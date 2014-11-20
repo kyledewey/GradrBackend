@@ -4,7 +4,7 @@ extern crate url;
 
 use self::hyper::HttpResult;
 use std::comm::{Receiver, SyncSender};
-use database::{Database, DatabaseEntry};
+use database::{Database, DatabaseEntry, BuildInsert, EntryStatus};
 
 use self::github::server::{NotificationReceiver, NotificationListener,
                            ConnectionCloser};
@@ -17,14 +17,22 @@ use self::url::Url;
 // Upon receiving a notification, information gets put into
 // a database which is polled upon later.
 
-pub trait NotificationSource<A> : Send {
+pub trait AsDatabaseInput<A> {
+    fn as_database_input(self) -> A;
+}
+
+impl<A> AsDatabaseInput<A> for A {
+    fn as_database_input(self) -> A { self }
+}
+
+pub trait NotificationSource<B, A : AsDatabaseInput<B>> : Send {
     fn get_notification(&self) -> Option<A>;
 
     /// Returns true if processing should continue, else false
-    fn notification_event_loop_step<B : DatabaseEntry<A>, D : Database<A, B>>(&self, db: &D) -> bool {
+    fn notification_event_loop_step<DBOut : DatabaseEntry<B>, DB : Database<B, DBOut>>(&self, db: &DB) -> bool {
         match self.get_notification() {
             Some(not) => {
-                db.add_pending(not);
+                db.add_pending(not.as_database_input());
                 true
             },
             None => false
@@ -48,7 +56,18 @@ pub struct GitHubServer<'a> {
     send_kill_to: SyncSender<Option<PushNotification>>
 }
 
-impl NotificationSource<PushNotification> for RunningServer {
+impl AsDatabaseInput<BuildInsert> for PushNotification {
+    fn as_database_input(self) -> BuildInsert {
+        BuildInsert {
+            status: (&EntryStatus::Pending).to_int(),
+            clone_url: self.clone_url.to_string(),
+            branch: self.branch,
+            results: "".to_string()
+        }
+    }
+}
+
+impl NotificationSource<BuildInsert, PushNotification> for RunningServer {
     fn get_notification(&self) -> Option<PushNotification> {
         self.recv.recv()
     }
@@ -112,7 +131,7 @@ pub mod testing {
         }
     }
 
-    impl NotificationSource<Path> for TestNotificationSource {
+    impl NotificationSource<Path, Path> for TestNotificationSource {
         fn get_notification(&self) -> Option<Path> {
             self.source.recv()
         }

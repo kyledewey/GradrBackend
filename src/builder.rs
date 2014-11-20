@@ -201,6 +201,7 @@ pub mod github {
     use super::{WholeBuildable, ToWholeBuildable, run_command};
     use super::testing::TestingRequest;
 
+    use database::BuildInsert;
     use util::MessagingUnwrapper;
 
     pub struct GitHubRequest {
@@ -263,6 +264,15 @@ pub mod github {
         }
     }
 
+    impl ToWholeBuildable<GitHubRequest> for BuildInsert {
+        fn to_whole_buildable(&self) -> GitHubRequest {
+            PushNotification {
+                clone_url: Url::parse(self.clone_url.as_slice()).unwrap(),
+                branch: self.branch.clone()
+            }.to_whole_buildable()
+        }
+    }
+    
     impl Drop for GitHubRequest {
         #[allow(unused_must_use)]
         fn drop(&mut self) {

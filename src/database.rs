@@ -49,7 +49,7 @@ pub enum EntryStatus {
 }
 
 impl EntryStatus {
-    fn to_int(&self) -> i32 {
+    pub fn to_int(&self) -> i32 {
         match *self {
             Pending => 0,
             InProgress => 1,
@@ -85,6 +85,8 @@ pub mod postgres_db {
         fn get_base(&self) -> BuildInsert {
             BuildInsert {
                 status: self.status,
+                clone_url: self.clone_url.clone(),
+                branch: self.branch.clone(),
                 results: self.results.clone()
             }
         }
@@ -92,12 +94,14 @@ pub mod postgres_db {
 
     fn get_one_build(conn: &Connection) -> Option<Build> {
         let stmt = conn.prepare(
-            "SELECT id, status, results FROM builds LIMIT 1").unwrap();
-        for row in stmt.query([]).unwrap() {
+            "SELECT id, status, clone_url, branch, results FROM builds WHERE status=$1 LIMIT 1").unwrap();
+        for row in stmt.query(&[&(&Pending).to_int()]).unwrap() {
             return Some(Build {
                 id: row.get(0),
                 status: row.get(1),
-                results: row.get(2)
+                clone_url: row.get(2),
+                branch: row.get(3),
+                results: row.get(4)
             })
         }
         
@@ -140,8 +144,8 @@ pub mod postgres_db {
         fn results_for_entry(&self, entry: &Build) -> Option<String> {
             let lock = self.db.lock();
             let stmt = lock.prepare(
-                "SELECT results FROM builds WHERE id=$1").unwrap();
-            for row in stmt.query(&[&entry.id]).unwrap() {
+                "SELECT results FROM builds WHERE id=$1 AND status=$2").unwrap();
+            for row in stmt.query(&[&entry.id, &(&Done).to_int()]).unwrap() {
                 return Some(row.get(0));
             }
             None
