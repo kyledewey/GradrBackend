@@ -2,7 +2,7 @@ extern crate hyper;
 extern crate gradr_backend;
 
 use hyper::Ipv4Addr;
-use gradr_backend::notification_listener::GitHubServer;
+use gradr_backend::notification_listener::{GitHubServer, NotificationSource};
 
 #[cfg(not(test))]
 fn main() {
