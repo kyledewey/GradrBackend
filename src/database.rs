@@ -81,9 +81,10 @@ pub mod postgres_db {
         }
 
         pub fn new_testing() -> Option<PostgresDatabase> {
-            match PostgresDatabase::new(
-                "postgres://jroesch@localhost/gradr-testing") {
-                Some(db) => {
+            let retval = PostgresDatabase::new(
+                "postgres://jroesch@localhost/gradr-testing");
+            match retval {
+                Some(ref db) => {
                     let lock = db.db.lock();
                     lock.execute(
                         "DROP TABLE IF EXISTS users", &[]);
@@ -100,7 +101,7 @@ pub mod postgres_db {
                             updated_at timestamp without time zone,
                             github_username varchar(500),
                             password_digest varchar(500)
-                            )");
+                            )", &[]);
                     lock.execute(
                         "CREATE TABLE builds (
                             id SERIAL,
@@ -108,11 +109,11 @@ pub mod postgres_db {
                             clone_url text,
                             branch text,
                             results text
-                            )");
-                    Some(db)
-                },
-                None => None
-            }
+                            )", &[]);
+                    },
+                None => ()
+            };
+            retval
         }
     }
 
