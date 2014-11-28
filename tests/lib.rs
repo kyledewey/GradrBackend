@@ -175,6 +175,6 @@ fn end_to_end_github_not_source_in_memory() {
 #[test]
 fn end_to_end_github_not_source_postgres() {
     end_to_end_github_not_source(
-        PostgresDatabase::new("postgres://jroesch@localhost/gradr-production").unwrap(),
+        PostgresDatabase::new_testing().unwrap(),
         12347);
 }
