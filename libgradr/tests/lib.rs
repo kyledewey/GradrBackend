@@ -1,4 +1,4 @@
-extern crate gradr_backend;
+extern crate libgradr;
 extern crate hyper;
 extern crate github;
 extern crate url;
@@ -8,16 +8,16 @@ use std::io::timer;
 use std::sync::{Arc, RWLock};
 use std::time::Duration;
 
-use gradr_backend::util::MessagingUnwrapper;
-use gradr_backend::builder::{WholeBuildable, ToWholeBuildable};
-use gradr_backend::database::{Database, DatabaseEntry, Build};
-use gradr_backend::database::testing::TestDatabase;
-use gradr_backend::database::postgres_db::PostgresDatabase;
+use libgradr::util::MessagingUnwrapper;
+use libgradr::builder::{WholeBuildable, ToWholeBuildable};
+use libgradr::database::{Database, DatabaseEntry, Build};
+use libgradr::database::testing::TestDatabase;
+use libgradr::database::postgres_db::PostgresDatabase;
 
-use gradr_backend::notification_listener::{NotificationSource, GitHubServer,
+use libgradr::notification_listener::{NotificationSource, GitHubServer,
                                            RunningServer, AsDatabaseInput};
-use gradr_backend::notification_listener::testing::TestNotificationSource;
-use gradr_backend::worker::worker_loop_step;
+use libgradr::notification_listener::testing::TestNotificationSource;
+use libgradr::worker::worker_loop_step;
 
 use self::github::server::testing::{send_to_server, SendPush};
 use self::github::notification::PushNotification;

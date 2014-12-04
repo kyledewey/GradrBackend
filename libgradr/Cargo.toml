@@ -1,8 +1,13 @@
 [package]
 
-name = "gradr_backend"
+name = "libgradr"
 version = "0.0.1"
 authors = ["Kyle Dewey <kyledewey@cs.ucsb.edu>"]
+
+[lib]
+
+name = "libgradr"
+path = "src/lib.rs"
 
 
 [dependencies.postgres]
