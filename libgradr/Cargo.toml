@@ -20,6 +20,9 @@ git = "https://github.com/jroesch/rust-github.git"
 name = "url"
 git = "https://github.com/servo/rust-url"
 
+[dependencies.hyper]
+git = "https://github.com/hyperium/hyper.git"
+
 [dependencies.pg_typeprovider]
 name = "pg-typeprovider"
 git  = "https://github.com/jroesch/pg-typeprovider"
