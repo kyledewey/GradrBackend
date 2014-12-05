@@ -1,0 +1,8 @@
+[package]
+
+name = "gradr_worker"
+version = "0.0.1"
+authors = ["Kyle Dewey <kyledewey@cs.ucsb.edu>"]
+
+[dependencies.libgradr]
+path = "../libgradr"
