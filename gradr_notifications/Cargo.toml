@@ -1,0 +1,11 @@
+[package]
+
+name = "gradr_notifications"
+version = "0.0.1"
+authors = ["Kyle Dewey <kyledewey@cs.ucsb.edu>"]
+
+[dependencies.hyper]
+git = "https://github.com/hyperium/hyper.git"
+
+[dependencies.libgradr]
+path = "../libgradr"
