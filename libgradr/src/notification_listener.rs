@@ -12,7 +12,6 @@ use self::github::server::{NotificationReceiver, NotificationListener,
 use self::github::notification::PushNotification;
 
 use self::hyper::{IpAddr, Port};
-use self::url::Url;
 
 // Listens for notifications from some external source.
 // Upon receiving a notification, information gets put into

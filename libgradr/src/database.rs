@@ -12,7 +12,7 @@ extern crate postgres;
 #[phase(plugin)]
 extern crate pg_typeprovider;
 
-use self::postgres::{Connection, SslMode};
+use self::postgres::Connection;
 
 use builder::BuildResult;
 
@@ -197,7 +197,7 @@ pub mod testing {
     use std::sync::RWLock;
 
     use builder::BuildResult;
-    use super::{Database, DatabaseEntry};
+    use super::Database;
 
     /// Simply a directory to a status.
     pub struct TestDatabase<A> {
