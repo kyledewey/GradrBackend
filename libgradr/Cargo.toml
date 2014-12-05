@@ -26,3 +26,4 @@ git = "https://github.com/hyperium/hyper.git"
 [dependencies.pg_typeprovider]
 name = "pg-typeprovider"
 git  = "https://github.com/jroesch/pg-typeprovider"
+

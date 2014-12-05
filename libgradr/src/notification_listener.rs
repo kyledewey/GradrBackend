@@ -4,6 +4,7 @@ extern crate url;
 
 use self::hyper::HttpResult;
 use std::comm::{Receiver, SyncSender};
+use std::sync::Mutex;
 use database::{Database, DatabaseEntry, BuildInsert, EntryStatus};
 
 use self::github::server::{NotificationReceiver, NotificationListener,
@@ -41,12 +42,12 @@ pub trait NotificationSource<B, A : AsDatabaseInput<B>> : Send {
 }
 
 struct SenderWrapper {
-    wrapped: SyncSender<Option<PushNotification>>
+    wrapped: Mutex<SyncSender<Option<PushNotification>>>
 }
 
 impl NotificationReceiver for SenderWrapper {
     fn receive_push_notification(&self, not: PushNotification) {
-        self.wrapped.send(Some(not));
+        self.wrapped.lock().send(Some(not));
     }
 }
 
@@ -97,7 +98,7 @@ impl<'a> GitHubServer<'a> {
         GitHubServer {
             conn: NotificationListener::new(
                 addr, port, 
-                SenderWrapper { wrapped: tx.clone() }),
+                SenderWrapper { wrapped: Mutex::new(tx.clone()) }),
             recv: rx,
             send_kill_to: tx
         }

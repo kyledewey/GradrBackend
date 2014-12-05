@@ -19,7 +19,8 @@ use libgradr::notification_listener::{NotificationSource, GitHubServer,
 use libgradr::notification_listener::testing::TestNotificationSource;
 use libgradr::worker::worker_loop_step;
 
-use self::github::server::testing::{send_to_server, SendPush};
+use self::github::server::testing::send_to_server;
+use self::github::server::testing::Sendable::SendPush;
 use self::github::notification::PushNotification;
 
 use self::url::Url;
