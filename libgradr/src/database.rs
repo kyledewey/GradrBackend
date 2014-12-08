@@ -87,15 +87,20 @@ pub mod postgres_db {
                 "postgres://jroesch@localhost/gradr-test");
             match retval {
                 Some(ref db) => {
-                    let lock = db.db.lock();
-                    lock.execute(
-                        "DELETE FROM users", &[]).unwrap();
-                    lock.execute(
-                        "DELETE FROM builds", &[]).unwrap();
-                    },
+                    db.with_connection(|conn| {
+                        conn.execute(
+                            "DELETE FROM users", &[]).unwrap();
+                        conn.execute(
+                            "DELETE FROM builds", &[]).unwrap();
+                    })
+                },
                 None => ()
             };
             retval
+        }
+
+        pub fn with_connection<A>(&self, f: |&Connection| -> A) -> A {
+            f(&*self.db.lock())
         }
     }
 
@@ -127,40 +132,45 @@ pub mod postgres_db {
 
     impl Database<BuildInsert, Build> for PostgresDatabase {
         fn add_pending(&self, entry: BuildInsert) {
-            entry.insert(&*self.db.lock());
+            self.with_connection(|conn| entry.insert(conn));
         }
 
         fn get_pending(&self) -> Option<Build> {
-            let conn: &Connection = &*self.db.lock();
-            loop {
-                match get_one_build(conn) {
-                    Some(b) => {
-                        if try_lock_build(conn, &b) {
-                            return Some(b);
-                        }
-                    },
-                    None => { return None; }
+            self.with_connection(|conn| {
+                loop {
+                    match get_one_build(conn) {
+                        Some(b) => {
+                            if try_lock_build(conn, &b) {
+                                return Some(b);
+                            }
+                        },
+                        None => { return None; }
+                    }
                 }
-            }
+            })
         }
 
         fn add_test_results(&self, entry: Build, results: BuildResult) {
-            let num_updated = 
-                BuildUpdate::new()
-                .status_to((&Done).to_int())
-                .results_to(results.to_string())
-                .where_id(entry.id)
-                .update(&*self.db.lock());
-            assert_eq!(num_updated, 1);
+            self.with_connection(|conn| {
+                let num_updated = 
+                    BuildUpdate::new()
+                    .status_to((&Done).to_int())
+                    .results_to(results.to_string())
+                    .where_id(entry.id)
+                    .update(conn);
+                assert_eq!(num_updated, 1);
+            });
         }
 
         fn results_for_entry(&self, entry: &Build) -> Option<String> {
-            BuildSearch::new()
-                .where_id(entry.id)
-                .where_status((&Done).to_int())
-                .search(&*self.db.lock(), Some(1))
-                .pop()
-                .map(|b| b.results)
+            self.with_connection(|conn| {
+                BuildSearch::new()
+                    .where_id(entry.id)
+                    .where_status((&Done).to_int())
+                    .search(conn, Some(1))
+                    .pop()
+                    .map(|b| b.results)
+            })
         }
     }
 }
