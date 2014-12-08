@@ -12,8 +12,6 @@ extern crate postgres;
 #[phase(plugin)]
 extern crate pg_typeprovider;
 
-use self::postgres::{Connection, ToSql};
-
 use builder::BuildResult;
 
 use self::EntryStatus::{Pending, InProgress, Done};
@@ -86,14 +84,14 @@ pub mod postgres_db {
 
         pub fn new_testing() -> Option<PostgresDatabase> {
             let retval = PostgresDatabase::new(
-                "postgres://jroesch@localhost/gradr-testing");
+                "postgres://jroesch@localhost/gradr-test");
             match retval {
                 Some(ref db) => {
                     let lock = db.db.lock();
                     lock.execute(
-                        "DROP TABLE IF EXISTS users", &[]);
+                        "DROP TABLE IF EXISTS users", &[]).unwrap();
                     lock.execute(
-                        "DROP TABLE IF EXISTS builds", &[]);
+                        "DROP TABLE IF EXISTS builds", &[]).unwrap();
                     lock.execute(
                         "CREATE TABLE users (
                             id SERIAL,
@@ -105,7 +103,7 @@ pub mod postgres_db {
                             updated_at timestamp without time zone,
                             github_username varchar(500),
                             password_digest varchar(500)
-                            )", &[]);
+                            )", &[]).unwrap();
                     lock.execute(
                         "CREATE TABLE builds (
                             id SERIAL,
@@ -113,7 +111,7 @@ pub mod postgres_db {
                             clone_url text,
                             branch text,
                             results text
-                            )", &[]);
+                            )", &[]).unwrap();
                     },
                 None => ()
             };
@@ -178,7 +176,7 @@ pub mod postgres_db {
         fn add_test_results(&self, entry: Build, results: BuildResult) {
             self.db.lock().execute(
                 "UPDATE builds SET status=$1, results=$2 WHERE id=$3",
-                &[&(&Done).to_int(), &results.to_string(), &entry.id]);
+                &[&(&Done).to_int(), &results.to_string(), &entry.id]).unwrap();
         }
 
         fn results_for_entry(&self, entry: &Build) -> Option<String> {

@@ -9,7 +9,7 @@
 // have the same name, then only the last test is recorded.
 
 use std::collections::HashMap;
-use std::io::{BufferedReader, AsRefReader, RefReader, IoResult,
+use std::io::{BufferedReader, ByRefReader, RefReader, IoResult,
               IoError, OtherIoError};
 use std::io::pipe::PipeStream;
 use std::io::process::{Command, Process, ExitStatus, ExitSignal,
