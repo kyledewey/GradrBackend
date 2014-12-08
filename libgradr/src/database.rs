@@ -111,27 +111,18 @@ pub mod postgres_db {
     }
 
     fn get_one_build(conn: &Connection) -> Option<Build> {
-        let stmt = conn.prepare(
-            "SELECT id, status, clone_url, branch, results FROM builds WHERE status=$1 LIMIT 1").unwrap();
-        for row in stmt.query(&[&(&Pending).to_int()]).unwrap() {
-            return Some(Build {
-                id: row.get(0),
-                status: row.get(1),
-                clone_url: row.get(2),
-                branch: row.get(3),
-                results: row.get(4)
-            })
-        }
-        
-        None
+        BuildSearch::new()
+            .where_status((&Pending).to_int())
+            .search(conn, Some(1)).pop()
     }
 
     // returns true if it was able to lock it, else false
     fn try_lock_build(conn: &Connection, b: &Build) -> bool {
-        conn.execute(
-            "UPDATE builds SET status=$1 WHERE id=$2 AND status=$3",
-            &[&(&InProgress).to_int(), &b.id, &(&Pending).to_int()])
-            .unwrap() == 1
+        BuildUpdate::new()
+            .status_to((&InProgress).to_int())
+            .where_id(b.id)
+            .where_status((&Pending).to_int())
+            .update(conn) == 1
     }
 
     impl Database<BuildInsert, Build> for PostgresDatabase {
@@ -154,19 +145,22 @@ pub mod postgres_db {
         }
 
         fn add_test_results(&self, entry: Build, results: BuildResult) {
-            self.db.lock().execute(
-                "UPDATE builds SET status=$1, results=$2 WHERE id=$3",
-                &[&(&Done).to_int(), &results.to_string(), &entry.id]).unwrap();
+            let num_updated = 
+                BuildUpdate::new()
+                .status_to((&Done).to_int())
+                .results_to(results.to_string())
+                .where_id(entry.id)
+                .update(&*self.db.lock());
+            assert_eq!(num_updated, 1);
         }
 
         fn results_for_entry(&self, entry: &Build) -> Option<String> {
-            let lock = self.db.lock();
-            let stmt = lock.prepare(
-                "SELECT results FROM builds WHERE id=$1 AND status=$2").unwrap();
-            for row in stmt.query(&[&entry.id, &(&Done).to_int()]).unwrap() {
-                return Some(row.get(0));
-            }
-            None
+            BuildSearch::new()
+                .where_id(entry.id)
+                .where_status((&Done).to_int())
+                .search(&*self.db.lock(), Some(1))
+                .pop()
+                .map(|b| b.results)
         }
     }
 }
