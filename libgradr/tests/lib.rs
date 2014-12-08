@@ -3,20 +3,18 @@ extern crate hyper;
 extern crate github;
 extern crate url;
 
-use std::comm::sync_channel;
 use std::io::timer;
 use std::sync::{Arc, RWLock};
 use std::time::Duration;
 
 use libgradr::util::MessagingUnwrapper;
 use libgradr::builder::{WholeBuildable, ToWholeBuildable};
-use libgradr::database::{Database, DatabaseEntry, Build};
-use libgradr::database::testing::TestDatabase;
-use libgradr::database::postgres_db::PostgresDatabase;
+use libgradr::database::{Database, DatabaseEntry};
+use libgradr::database::EntryStatus::Done;
+use libgradr::database::postgres_db::{PostgresDatabase, BuildSearch};
 
 use libgradr::notification_listener::{NotificationSource, GitHubServer,
-                                           RunningServer, AsDatabaseInput};
-use libgradr::notification_listener::testing::TestNotificationSource;
+                                      RunningServer, AsDatabaseInput};
 use libgradr::worker::worker_loop_step;
 
 use self::github::server::testing::send_to_server;
@@ -87,42 +85,17 @@ fn end_to_end<A : WholeBuildable, DBIn : ToWholeBuildable<A>, NotIn : AsDatabase
 }
 
 #[cfg(test)]
-fn end_to_end_test_not_source<A : Database<Path, Path>>(db: A) {
-    let (notification_sender, notification_recv) = sync_channel(10);
-    let not_src = TestNotificationSource::new(notification_recv);
-    let to_send = vec!(Path::new("test/end_to_end"));
-    let sender = |path: Path| {
-        notification_sender.send(Some(path));
-    };
-    
-    fn stop_not(_: &TestNotificationSource) {}
-
-    let stop_clo = || {
-        notification_sender.send(None);
-    };
-    let checker = |db: &A| {
-        match db.results_for_entry(&Path::new("test/end_to_end")) {
-            Some(ref s) => {
-                assert!(s.contains("test1: Pass"));
-                assert!(s.contains("test2: Fail"));
-                false
-            },
-            None => true
-        }
-    };
-
-    end_to_end(db, not_src, to_send, sender, stop_not, stop_clo, checker);
-}
-
-#[cfg(test)]
 fn end_to_end_github_not_source(db: PostgresDatabase, port: Port) {
     let server = GitHubServer::new(ADDR, port);
     let not_src = server.event_loop().unwrap_msg(line!());
+    let clone_url =
+        "https://github.com/scalableinternetservices/GradrBackend.git";
+    let branch = "testing";
 
     let not1 = 
         PushNotification {
-            clone_url: Url::parse("https://github.com/scalableinternetservices/GradrBackend.git").unwrap_msg(line!()),
-            branch: "testing".to_string()
+            clone_url: Url::parse(clone_url).unwrap_msg(line!()),
+            branch: branch.to_string()
         };
 
     let to_send = vec!(not1);
@@ -138,40 +111,25 @@ fn end_to_end_github_not_source(db: PostgresDatabase, port: Port) {
 
 
     let checker = |db: &PostgresDatabase| {
-        // HACK
-        let key = Build {
-            id: 1,
-            status: 0,
-            clone_url: "".to_string(),
-            branch: "".to_string(),
-            results: "".to_string()
-        };
-
-        match db.results_for_entry(&key) {
-            Some(ref s) => {
-                assert!(s.contains("test1: Pass"));
-                assert!(s.contains("test2: Fail"));
-                false
-            },
-            None => true
-        }
+        db.with_connection(|conn| {
+            BuildSearch::new()
+                .where_clone_url(clone_url.to_string())
+                .where_branch(branch.to_string())
+                .where_status((&Done).to_int())
+                .search(conn, Some(1))
+                .pop()
+                .map(|build| {
+                    let results = &build.results;
+                    assert!(results.contains("test1: Pass"));
+                    assert!(results.contains("test2: Fail"));
+                    false
+                }).unwrap_or(true)
+        })
     };
 
     end_to_end(db, not_src, to_send, sender, stop_not, stop_clo, checker);
 }
 
-
-#[test]
-fn end_to_end_test_not_source_in_memory() {
-    end_to_end_test_not_source(TestDatabase::<Path>::new());
-}
-
-/*
-#[test]
-fn end_to_end_github_not_source_in_memory() {
-    end_to_end_github_not_source(TestDatabase::<Path>::new(), 12346);
-}
-*/
 
 #[test]
 fn end_to_end_github_not_source_postgres() {
