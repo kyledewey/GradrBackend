@@ -89,29 +89,9 @@ pub mod postgres_db {
                 Some(ref db) => {
                     let lock = db.db.lock();
                     lock.execute(
-                        "DROP TABLE IF EXISTS users", &[]).unwrap();
+                        "DELETE FROM users", &[]).unwrap();
                     lock.execute(
-                        "DROP TABLE IF EXISTS builds", &[]).unwrap();
-                    lock.execute(
-                        "CREATE TABLE users (
-                            id SERIAL,
-                            email varchar(500),
-                            first_name varchar(500),
-                            last_name varchar(500),
-                            access_token varchar(500),
-                            created_at timestamp without time zone,
-                            updated_at timestamp without time zone,
-                            github_username varchar(500),
-                            password_digest varchar(500)
-                            )", &[]).unwrap();
-                    lock.execute(
-                        "CREATE TABLE builds (
-                            id SERIAL,
-                            status int,
-                            clone_url text,
-                            branch text,
-                            results text
-                            )", &[]).unwrap();
+                        "DELETE FROM builds", &[]).unwrap();
                     },
                 None => ()
             };
