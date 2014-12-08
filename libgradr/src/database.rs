@@ -12,13 +12,11 @@ extern crate postgres;
 #[phase(plugin)]
 extern crate pg_typeprovider;
 
-use self::postgres::Connection;
+use self::postgres::{Connection, ToSql};
 
 use builder::BuildResult;
 
 use self::EntryStatus::{Pending, InProgress, Done};
-
-pg_table!(builds)
 
 pub trait DatabaseEntry<A> : Send {
     fn get_base(&self) -> A;
@@ -59,13 +57,19 @@ impl EntryStatus {
 }
 
 pub mod postgres_db {
+    extern crate pg_typeprovider;
+
+    use self::pg_typeprovider::util::Joinable;
+
     use std::sync::Mutex;
 
-    use super::postgres::{Connection, SslMode};
+    use super::postgres::{Connection, SslMode, ToSql};
 
     use builder::BuildResult;
     use super::EntryStatus::{Pending, InProgress, Done};
-    use super::{Database, DatabaseEntry, BuildInsert, Build};
+    use super::{Database, DatabaseEntry};
+
+    pg_table!(builds)
 
     pub struct PostgresDatabase {
         db: Mutex<Connection>

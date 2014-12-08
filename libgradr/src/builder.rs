@@ -201,7 +201,7 @@ pub mod github {
     use super::{WholeBuildable, ToWholeBuildable, run_command};
     use super::testing::TestingRequest;
 
-    use database::BuildInsert;
+    use database::postgres_db::BuildInsert;
     use util::MessagingUnwrapper;
 
     pub struct GitHubRequest {

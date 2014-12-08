@@ -5,7 +5,8 @@ extern crate url;
 use self::hyper::HttpResult;
 use std::comm::{Receiver, SyncSender};
 use std::sync::Mutex;
-use database::{Database, DatabaseEntry, BuildInsert, EntryStatus};
+use database::{Database, DatabaseEntry, EntryStatus};
+use database::postgres_db::BuildInsert;
 
 use self::github::server::{NotificationReceiver, NotificationListener,
                            ConnectionCloser};
