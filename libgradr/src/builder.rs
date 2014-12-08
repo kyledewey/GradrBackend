@@ -492,11 +492,11 @@ mod build_tests {
         let u = res.unwrap_msg(line!());
         assert_eq!(u.len(), 2);
 
-        let t1 = u.find_equiv(&"test1".to_string());
+        let t1 = u.get(&"test1".to_string());
         assert!(t1.is_some());
         assert_eq!(t1.unwrap_msg(line!()), &Pass);
 
-        let t2 = u.find_equiv(&"test2".to_string());
+        let t2 = u.get(&"test2".to_string());
         assert!(t2.is_some());
         assert_eq!(t2.unwrap_msg(line!()), &Fail);
     }
@@ -505,11 +505,11 @@ mod build_tests {
     fn test_whole_build() {
         match req("test_whole_build").whole_build() {
             TestSuccess(u) => {
-                let t1 = u.find_equiv(&"test1".to_string());
+                let t1 = u.get(&"test1".to_string());
                 assert!(t1.is_some());
                 assert_eq!(t1.unwrap_msg(line!()), &Pass);
                 
-                let t2 = u.find_equiv(&"test2".to_string());
+                let t2 = u.get(&"test2".to_string());
                 assert!(t2.is_some());
                 assert_eq!(t2.unwrap_msg(line!()), &Fail);
             },
