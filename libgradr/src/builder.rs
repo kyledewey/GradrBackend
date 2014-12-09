@@ -241,7 +241,7 @@ pub mod github {
     use super::{WholeBuildable, ToWholeBuildable, run_command};
     use super::testing::TestingRequest;
 
-    use database::postgres_db::BuildInsert;
+    use database::PendingBuild;
     use util::MessagingUnwrapper;
 
     pub struct GitHubRequest {
@@ -295,21 +295,21 @@ pub mod github {
         }
     }
 
+    impl ToWholeBuildable<GitHubRequest> for PendingBuild {
+        fn to_whole_buildable(&self) -> GitHubRequest {
+            PushNotification {
+                clone_url: self.clone_url.clone(),
+                branch: self.branch.clone()
+            }.to_whole_buildable()
+        }
+    }
+
     impl ToWholeBuildable<GitHubRequest> for PushNotification {
         fn to_whole_buildable(&self) -> GitHubRequest {
             GitHubRequest::new(
                 self,
                 Path::new("build_test"),
                 Path::new("test/makefile"))
-        }
-    }
-
-    impl ToWholeBuildable<GitHubRequest> for BuildInsert {
-        fn to_whole_buildable(&self) -> GitHubRequest {
-            PushNotification {
-                clone_url: Url::parse(self.clone_url.as_slice()).unwrap(),
-                branch: self.branch.clone()
-            }.to_whole_buildable()
         }
     }
     

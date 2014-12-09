@@ -5,8 +5,7 @@ extern crate url;
 use self::hyper::HttpResult;
 use std::comm::{Receiver, SyncSender};
 use std::sync::Mutex;
-use database::{Database, DatabaseEntry, EntryStatus};
-use database::postgres_db::BuildInsert;
+use database::Database;
 
 use self::github::server::{NotificationReceiver, NotificationListener,
                            ConnectionCloser};
@@ -18,22 +17,14 @@ use self::hyper::{IpAddr, Port};
 // Upon receiving a notification, information gets put into
 // a database which is polled upon later.
 
-pub trait AsDatabaseInput<A> {
-    fn as_database_input(self) -> A;
-}
-
-impl<A> AsDatabaseInput<A> for A {
-    fn as_database_input(self) -> A { self }
-}
-
-pub trait NotificationSource<B, A : AsDatabaseInput<B>> : Send {
-    fn get_notification(&self) -> Option<A>;
+pub trait NotificationSource : Send {
+    fn get_notification(&self) -> Option<PushNotification>;
 
     /// Returns true if processing should continue, else false
-    fn notification_event_loop_step<DBOut : DatabaseEntry<B>, DB : Database<B, DBOut>>(&self, db: &DB) -> bool {
+    fn notification_event_loop_step<D : Database>(&self, db: &D) -> bool {
         match self.get_notification() {
             Some(not) => {
-                db.add_pending(not.as_database_input());
+                db.add_pending(not);
                 true
             },
             None => false
@@ -57,18 +48,7 @@ pub struct GitHubServer<'a> {
     send_kill_to: SyncSender<Option<PushNotification>>
 }
 
-impl AsDatabaseInput<BuildInsert> for PushNotification {
-    fn as_database_input(self) -> BuildInsert {
-        BuildInsert {
-            status: (&EntryStatus::Pending).to_int(),
-            clone_url: self.clone_url.to_string(),
-            branch: self.branch,
-            results: "".to_string()
-        }
-    }
-}
-
-impl NotificationSource<BuildInsert, PushNotification> for RunningServer {
+impl NotificationSource for RunningServer {
     fn get_notification(&self) -> Option<PushNotification> {
         self.recv.recv()
     }
@@ -116,25 +96,3 @@ impl<'a> GitHubServer<'a> {
     }
 }
 
-pub mod testing {
-    use std::comm::Receiver;
-    use super::NotificationSource;
-
-    pub struct TestNotificationSource {
-        source: Receiver<Option<Path>>
-    }
-
-    impl TestNotificationSource {
-        pub fn new(source: Receiver<Option<Path>>) -> TestNotificationSource {
-            TestNotificationSource {
-                source: source
-            }
-        }
-    }
-
-    impl NotificationSource<Path, Path> for TestNotificationSource {
-        fn get_notification(&self) -> Option<Path> {
-            self.source.recv()
-        }
-    }
-}

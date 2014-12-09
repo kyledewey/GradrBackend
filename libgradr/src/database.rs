@@ -11,29 +11,30 @@
 extern crate postgres;
 #[phase(plugin)]
 extern crate pg_typeprovider;
+extern crate github;
+extern crate url;
 
+use self::url::Url;
+use self::github::notification::PushNotification;
 use builder::BuildResult;
 
 use self::EntryStatus::{Pending, InProgress, Done};
 
-pub trait DatabaseEntry<A> : Send {
-    fn get_base(&self) -> A;
-}
-
-impl<A : Send + Clone> DatabaseEntry<A> for A {
-    fn get_base(&self) -> A { self.clone() }
+pub struct PendingBuild {
+    pub clone_url: Url,
+    pub branch: String
 }
 
 /// Type A is some key
-pub trait Database<A, B : DatabaseEntry<A>> : Sync + Send {
-    fn add_pending(&self, entry: A);
+pub trait Database : Sync + Send {
+    fn add_pending(&self, entry: PushNotification);
 
     /// Optionally gets a pending build from the database.
     /// If `Some` is returned, it will not be returned again.
     /// If `None` is returned, it is expected that the caller will sleep.
-    fn get_pending(&self) -> Option<B>;
+    fn get_pending(&self) -> Option<PendingBuild>;
 
-    fn add_test_results(&self, entry: B, results: BuildResult);
+    fn add_test_results(&self, entry: &PendingBuild, results: BuildResult);
 }
 
 pub enum EntryStatus {
@@ -53,8 +54,15 @@ impl EntryStatus {
 }
 
 pub mod postgres_db {
+    extern crate time;
     extern crate pg_typeprovider;
+    extern crate github;
 
+    use super::PendingBuild;
+
+    use self::github::notification::PushNotification;
+
+    use self::time::Timespec;
     use self::pg_typeprovider::util::Joinable;
 
     use std::sync::Mutex;
@@ -63,7 +71,7 @@ pub mod postgres_db {
 
     use builder::BuildResult;
     use super::EntryStatus::{Pending, InProgress, Done};
-    use super::{Database, DatabaseEntry};
+    use super::Database;
 
     pg_table!(builds)
 
@@ -102,17 +110,6 @@ pub mod postgres_db {
         }
     }
 
-    impl DatabaseEntry<BuildInsert> for Build {
-        fn get_base(&self) -> BuildInsert {
-            BuildInsert {
-                status: self.status,
-                clone_url: self.clone_url.clone(),
-                branch: self.branch.clone(),
-                results: self.results.clone()
-            }
-        }
-    }
-
     fn get_one_build(conn: &Connection) -> Option<Build> {
         BuildSearch::new()
             .where_status((&Pending).to_int())
@@ -128,41 +125,46 @@ pub mod postgres_db {
             .update(conn) == 1
     }
 
-    impl Database<BuildInsert, Build> for PostgresDatabase {
-        fn add_pending(&self, entry: BuildInsert) {
-            self.with_connection(|conn| entry.insert(conn));
+    impl Database for PostgresDatabase {
+        fn add_pending(&self, entry: PushNotification) {
+            // self.with_connection(|conn| {
+            //     let trans = conn.transaction().unwrap();
+                
+            // self.with_connection(|conn| entry.insert(conn));
         }
 
-        fn get_pending(&self) -> Option<Build> {
-            self.with_connection(|conn| {
-                loop {
-                    match get_one_build(conn) {
-                        Some(b) => {
-                            if try_lock_build(conn, &b) {
-                                return Some(b);
-                            }
-                        },
-                        None => { return None; }
-                    }
-                }
-            })
+        fn get_pending(&self) -> Option<PendingBuild> {
+            None
+            // self.with_connection(|conn| {
+            //     loop {
+            //         match get_one_build(conn) {
+            //             Some(b) => {
+            //                 if try_lock_build(conn, &b) {
+            //                     return Some(b);
+            //                 }
+            //             },
+            //             None => { return None; }
+            //         }
+            //     }
+            // })
         }
 
-        fn add_test_results(&self, entry: Build, results: BuildResult) {
+        fn add_test_results(&self, entry: &PendingBuild, results: BuildResult) {
             // TODO: we do a copy here because we cannot move into a closure,
             // even though this is what we want.  I spent around 2 hours trying
             // to get around this, but to no avail.
-            let res = results.consume_to_json().to_string();
-            let s = res.as_slice();
-            self.with_connection(|conn| {
-                let num_updated = 
-                    BuildUpdate::new()
-                    .status_to((&Done).to_int())
-                    .results_to(s.to_string())
-                    .where_id(entry.id)
-                    .update(conn);
-                assert_eq!(num_updated, 1);
-            });
+
+            // let res = results.consume_to_json().to_string();
+            // let s = res.as_slice();
+            // self.with_connection(|conn| {
+            //     let num_updated = 
+            //         BuildUpdate::new()
+            //         .status_to((&Done).to_int())
+            //         .results_to(s.to_string())
+            //         .where_id(entry.id)
+            //         .update(conn);
+            //     assert_eq!(num_updated, 1);
+            // });
         }
     }
 }
