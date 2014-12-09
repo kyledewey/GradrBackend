@@ -149,11 +149,16 @@ pub mod postgres_db {
         }
 
         fn add_test_results(&self, entry: Build, results: BuildResult) {
+            // TODO: we do a copy here because we cannot move into a closure,
+            // even though this is what we want.  I spent around 2 hours trying
+            // to get around this, but to no avail.
+            let res = results.consume_to_json().to_string();
+            let s = res.as_slice();
             self.with_connection(|conn| {
                 let num_updated = 
                     BuildUpdate::new()
                     .status_to((&Done).to_int())
-                    .results_to(results.to_string())
+                    .results_to(s.to_string())
                     .where_id(entry.id)
                     .update(conn);
                 assert_eq!(num_updated, 1);

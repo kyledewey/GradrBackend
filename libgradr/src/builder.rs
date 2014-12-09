@@ -8,6 +8,9 @@
 // ...where each test result is on its own line.  If multiple tests
 // have the same name, then only the last test is recorded.
 
+extern crate serialize;
+
+use self::serialize::json::{ToJson, Json};
 use std::collections::HashMap;
 use std::io::{BufferedReader, ByRefReader, RefReader, IoResult,
               IoError, OtherIoError};
@@ -74,6 +77,17 @@ pub enum TestResult {
     Fail
 }
 
+impl ToJson for TestResult {
+    fn to_json(&self) -> Json {
+        let as_bool =
+            match self {
+                &Pass => true,
+                &Fail => false
+            };
+        as_bool.to_json()
+    }
+}
+
 struct ProcessReader {
     p: Process
 }
@@ -127,6 +141,32 @@ pub enum BuildResult {
     TestFailure(IoError),
     TestSuccess(HashMap<String, TestResult>)
 }
+
+impl BuildResult {
+    // Unlike to_json, this consumes the argument.  This avoids copying.
+    pub fn consume_to_json(self) -> Json {
+        fn error_to_json(error_name: &str, error_desc: &IoError) -> Json {
+            let mut map = HashMap::new();
+            map.insert("error".to_string(), error_name.to_string());
+            map.insert("description".to_string(), error_desc.to_string());
+            map.to_json()
+        }
+
+        match self {
+            SetupEnvFailure(ref e) =>
+                error_to_json("Environment setup", e),
+            BuildFailure(ref e) =>
+                error_to_json("Build failure", e),
+            TestFailure(ref e) =>
+                error_to_json("Testing execution failure", e),
+            TestSuccess(res) => {
+                let mut map = HashMap::new();
+                map.insert("success".to_string(), res);
+                map.to_json()
+            }
+        }
+    }
+} // BuildResult
 
 pub trait WholeBuildable {
     // BEGIN FUNCTIONS TO IMPLEMENT

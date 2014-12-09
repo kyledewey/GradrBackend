@@ -2,6 +2,9 @@ extern crate libgradr;
 extern crate hyper;
 extern crate github;
 extern crate url;
+extern crate serialize;
+
+use serialize::json::{ToJson, from_str};
 
 use std::io::timer;
 use std::sync::{Arc, RWLock};
@@ -119,9 +122,25 @@ fn end_to_end_github_not_source(db: PostgresDatabase, port: Port) {
                 .search(conn, Some(1))
                 .pop()
                 .map(|build| {
-                    let results = &build.results;
-                    assert!(results.contains("test1: Pass"));
-                    assert!(results.contains("test2: Fail"));
+                    let json = from_str(build.results.as_slice());
+                    assert!(json.is_ok());
+
+                    let json = json.unwrap();
+                    let obj = json.as_object();
+                    assert!(obj.is_some());
+
+                    let obj = obj.unwrap();
+                    let res = obj.get(&"success".to_string());
+                    assert!(res.is_some());
+
+                    let res = res.unwrap().as_object();
+                    assert!(res.is_some());
+
+                    let res = res.unwrap();
+                    assert_eq!(res.get(&"test1".to_string()),
+                               Some(&true.to_json()));
+                    assert_eq!(res.get(&"test2".to_string()),
+                               Some(&false.to_json()));
                     false
                 }).unwrap_or(true)
         })

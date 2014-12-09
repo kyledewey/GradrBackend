@@ -1,4 +1,4 @@
-#![feature(phase)]
+#![feature(phase, unboxed_closures)]
 
 pub mod builder;
 pub mod database;
