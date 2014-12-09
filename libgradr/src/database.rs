@@ -59,7 +59,7 @@ pub mod postgres_db {
 
     use std::sync::Mutex;
 
-    use super::postgres::{Connection, SslMode, ToSql};
+    use super::postgres::{Connection, GenericConnection, SslMode, ToSql};
 
     use builder::BuildResult;
     use super::EntryStatus::{Pending, InProgress, Done};
