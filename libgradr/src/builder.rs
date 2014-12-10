@@ -230,41 +230,36 @@ pub trait ToWholeBuildable<A : WholeBuildable> {
 }
 
 pub mod github {
-    extern crate url;
     extern crate github;
 
     use std::io::Command;
 
     use self::github::notification::PushNotification;
-    use self::url::Url;
 
     use super::{WholeBuildable, ToWholeBuildable, run_command};
     use super::testing::TestingRequest;
 
     use database::PendingBuild;
+    use clone_url::CloneUrl;
     use util::MessagingUnwrapper;
 
     pub struct GitHubRequest {
         build_root: Path,
         branch: String,
-        clone_url: Url,
+        clone_url: CloneUrl,
         testing_req: TestingRequest,
     }
 
     impl GitHubRequest {
         pub fn new(pn: &PushNotification, build_root: Path, makefile_loc: Path) -> GitHubRequest {
             let mut dir = build_root.clone();
-
-            // TODO: this is very hacky and likely doesn't work in general
-            let trim: &[_] = &['.', 'g', 'i', 't'];
-            let clone_url_string = pn.clone_url.serialize();
-            let splits: Vec<&str> = clone_url_string.split('/').collect();
-            dir.push(splits.last().unwrap_msg(line!()).trim_right_chars(trim));
+            let url = CloneUrl::new_from_url(pn.clone_url.clone()).unwrap();
+            dir.push(url.project_name());
             
             GitHubRequest {
                 build_root: build_root,
                 branch: pn.branch.clone(),
-                clone_url: pn.clone_url.clone(),
+                clone_url: url,
                 testing_req: TestingRequest::new(dir, makefile_loc)
             }
         }
@@ -278,7 +273,7 @@ pub mod github {
         fn env_commands(&self) -> Vec<Command> {
             let mut clone = Command::new("git");
             clone.arg("clone").arg("-b").arg(self.branch.as_slice());
-            clone.arg(self.clone_url.serialize());
+            clone.arg(self.clone_url.url.serialize());
             clone.cwd(&self.build_root);
 
             let mut retval = vec!(clone);
@@ -298,7 +293,7 @@ pub mod github {
     impl ToWholeBuildable<GitHubRequest> for PendingBuild {
         fn to_whole_buildable(&self) -> GitHubRequest {
             PushNotification {
-                clone_url: self.clone_url.clone(),
+                clone_url: self.clone_url.url.clone(),
                 branch: self.branch.clone()
             }.to_whole_buildable()
         }

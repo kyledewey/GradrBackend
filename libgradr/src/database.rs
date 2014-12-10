@@ -12,16 +12,15 @@ extern crate postgres;
 #[phase(plugin)]
 extern crate pg_typeprovider;
 extern crate github;
-extern crate url;
 
-use self::url::Url;
 use self::github::notification::PushNotification;
+use clone_url::CloneUrl;
 use builder::BuildResult;
 
 use self::EntryStatus::{Pending, InProgress, Done};
 
 pub struct PendingBuild {
-    pub clone_url: Url,
+    pub clone_url: CloneUrl,
     pub branch: String
 }
 
@@ -57,9 +56,6 @@ pub mod postgres_db {
     extern crate time;
     extern crate pg_typeprovider;
     extern crate github;
-    extern crate url;
-
-    use self::url::Url;
 
     use super::PendingBuild;
 
@@ -73,6 +69,7 @@ pub mod postgres_db {
     use super::postgres::{Connection, GenericConnection, SslMode, ToSql};
 
     use builder::BuildResult;
+    use clone_url::CloneUrl;
     use super::EntryStatus::{Pending, InProgress, Done};
     use super::Database;
 
@@ -141,7 +138,8 @@ pub mod postgres_db {
                 .pop()
                 .unwrap(); // should be in there
             PendingBuild {
-                clone_url: Url::parse(commit.clone_url.as_slice()).unwrap(),
+                clone_url: CloneUrl::new_from_str(
+                    commit.clone_url.as_slice()).unwrap(),
                 branch: commit.branch_name
             }
         }
