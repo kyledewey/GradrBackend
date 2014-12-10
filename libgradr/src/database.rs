@@ -63,7 +63,7 @@ pub mod postgres_db {
     use self::github::notification::PushNotification;
     use self::github::clone_url::CloneUrl;
 
-    use self::time::Timespec;
+    use self::time::{now, Timespec};
     use self::pg_typeprovider::util::Joinable;
 
     use std::sync::Mutex;
@@ -76,6 +76,9 @@ pub mod postgres_db {
 
     pg_table!(builds)
     pg_table!(commits)
+    pg_table!(users)
+    pg_table!(assignments)
+    pg_table!(submissions)
 
     pub struct PostgresDatabase {
         db: Mutex<Connection>
@@ -146,13 +149,106 @@ pub mod postgres_db {
             }
         }
     }
-    
+
+    fn get_user_by_github_username(conn: &GenericConnection,
+                                   name: &str) -> Option<User> {
+        UserSearch::new()
+            .where_github_username(name.to_string())
+            .search(conn, Some(1))
+            .pop()
+    }
+
+    fn get_assignment_by_git_project_name(conn: &GenericConnection,
+                                          project_name: &str) -> Option<Assignment> {
+        AssignmentSearch::new()
+            .where_git_project_name(project_name.to_string())
+            .search(conn, Some(1))
+            .pop()
+    }
+
+    fn insert_submission(conn: &GenericConnection,
+                         user: &User,
+                         assignment: &Assignment) -> Submission {
+        let current_time = now().to_timespec();
+        SubmissionInsert {
+            user_id: user.id,
+            assignment_id: assignment.id,
+            created_at: current_time.clone(),
+            updated_at: current_time.clone()
+        }.insert(conn);
+        SubmissionSearch::new()
+            .where_created_at(current_time)
+            .search(conn, Some(1))
+            .pop()
+            .unwrap()
+    }
+
+    fn insert_commit(conn: &GenericConnection,
+                     user: &User,
+                     assignment: &Assignment,
+                     submission: &Submission,
+                     pn: &PushNotification) -> Commit {
+        let current_time = now().to_timespec();
+        CommitInsert {
+            assignment_id: assignment.id,
+            user_id: user.id,
+            created_at: current_time.clone(),
+            updated_at: current_time.clone(),
+            submission_id: submission.id,
+            branch_name: pn.branch.clone(),
+            clone_url: pn.clone_url.url.to_string()
+        }.insert(conn);
+        CommitSearch::new()
+            .where_created_at(current_time)
+            .search(conn, Some(1))
+            .pop()
+            .unwrap()
+    }
+
+    fn insert_build(conn: &GenericConnection,
+                    user: &User,
+                    assignment: &Assignment,
+                    commit: &Commit) {
+        let current_time = now().to_timespec();
+        BuildInsert {
+            commit_id: commit.id,
+            user_id: user.id,
+            assignment_id: assignment.id,
+            course_id: assignment.course_id,
+            created_at: current_time.clone(),
+            updated_at: current_time,
+            status: (&Pending).to_int(),
+            results: "".to_string()
+        }.insert(conn);
+    }
+                    
     impl Database for PostgresDatabase {
         fn add_pending(&self, entry: PushNotification) {
-            // self.with_connection(|conn| {
-            //     let trans = conn.transaction().unwrap();
-                
-            // self.with_connection(|conn| entry.insert(conn));
+            self.with_connection(|conn| {
+                let trans = conn.transaction().unwrap();
+                let op_user = get_user_by_github_username(
+                    &trans, entry.clone_url.username());
+                let op_assignment = get_assignment_by_git_project_name(
+                    &trans, entry.clone_url.project_name());
+                match (op_user, op_assignment) {
+                    (Some(user), Some(assignment)) => {
+                        let submission = insert_submission(&trans,
+                                                           &user,
+                                                           &assignment);
+                        let commit = insert_commit(&trans,
+                                                   &user,
+                                                   &assignment,
+                                                   &submission,
+                                                   &entry);
+                        insert_build(&trans, &user, &assignment, &commit);
+                        trans.commit().unwrap();
+                    },
+                    _ => {
+                        trans.set_rollback();
+                        trans.finish().unwrap();
+                    }
+                }
+            })
         }
 
         fn get_pending(&self) -> Option<PendingBuild> {
