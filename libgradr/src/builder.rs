@@ -235,12 +235,12 @@ pub mod github {
     use std::io::Command;
 
     use self::github::notification::PushNotification;
+    use self::github::clone_url::CloneUrl;
 
     use super::{WholeBuildable, ToWholeBuildable, run_command};
     use super::testing::TestingRequest;
 
     use database::PendingBuild;
-    use clone_url::CloneUrl;
     use util::MessagingUnwrapper;
 
     pub struct GitHubRequest {
@@ -253,13 +253,12 @@ pub mod github {
     impl GitHubRequest {
         pub fn new(pn: &PushNotification, build_root: Path, makefile_loc: Path) -> GitHubRequest {
             let mut dir = build_root.clone();
-            let url = CloneUrl::new_from_url(pn.clone_url.clone()).unwrap();
-            dir.push(url.project_name());
+            dir.push(pn.clone_url.project_name());
             
             GitHubRequest {
                 build_root: build_root,
                 branch: pn.branch.clone(),
-                clone_url: url,
+                clone_url: pn.clone_url.clone(),
                 testing_req: TestingRequest::new(dir, makefile_loc)
             }
         }
@@ -293,7 +292,7 @@ pub mod github {
     impl ToWholeBuildable<GitHubRequest> for PendingBuild {
         fn to_whole_buildable(&self) -> GitHubRequest {
             PushNotification {
-                clone_url: self.clone_url.url.clone(),
+                clone_url: self.clone_url.clone(),
                 branch: self.branch.clone()
             }.to_whole_buildable()
         }

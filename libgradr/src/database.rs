@@ -14,7 +14,7 @@ extern crate pg_typeprovider;
 extern crate github;
 
 use self::github::notification::PushNotification;
-use clone_url::CloneUrl;
+use self::github::clone_url::CloneUrl;
 use builder::BuildResult;
 
 use self::EntryStatus::{Pending, InProgress, Done};
@@ -61,6 +61,7 @@ pub mod postgres_db {
     use super::PendingBuild;
 
     use self::github::notification::PushNotification;
+    use self::github::clone_url::CloneUrl;
 
     use self::time::Timespec;
     use self::pg_typeprovider::util::Joinable;
@@ -70,7 +71,6 @@ pub mod postgres_db {
     use super::postgres::{Connection, GenericConnection, SslMode, ToSql};
 
     use builder::BuildResult;
-    use clone_url::CloneUrl;
     use super::EntryStatus::{Pending, InProgress, Done};
     use super::Database;
 
