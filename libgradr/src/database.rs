@@ -21,7 +21,8 @@ use self::EntryStatus::{Pending, InProgress, Done};
 
 pub struct PendingBuild {
     pub clone_url: CloneUrl,
-    pub branch: String
+    pub branch: String,
+    build_id: i32
 }
 
 /// Type A is some key
@@ -140,7 +141,8 @@ pub mod postgres_db {
             PendingBuild {
                 clone_url: CloneUrl::new_from_str(
                     commit.clone_url.as_slice()).unwrap(),
-                branch: commit.branch_name
+                branch: commit.branch_name,
+                build_id: self.id
             }
         }
     }
@@ -176,17 +178,17 @@ pub mod postgres_db {
             // even though this is what we want.  I spent around 2 hours trying
             // to get around this, but to no avail.
 
-            // let res = results.consume_to_json().to_string();
-            // let s = res.as_slice();
-            // self.with_connection(|conn| {
-            //     let num_updated = 
-            //         BuildUpdate::new()
-            //         .status_to((&Done).to_int())
-            //         .results_to(s.to_string())
-            //         .where_id(entry.id)
-            //         .update(conn);
-            //     assert_eq!(num_updated, 1);
-            // });
+            let res = results.consume_to_json().to_string();
+            let s = res.as_slice();
+            self.with_connection(|conn| {
+                let num_updated = 
+                    BuildUpdate::new()
+                    .status_to((&Done).to_int())
+                    .results_to(s.to_string())
+                    .where_id(entry.build_id)
+                    .update(conn);
+                assert_eq!(num_updated, 1);
+            });
         }
     }
 }
