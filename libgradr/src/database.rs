@@ -57,6 +57,9 @@ pub mod postgres_db {
     extern crate time;
     extern crate pg_typeprovider;
     extern crate github;
+    extern crate url;
+
+    use self::url::Url;
 
     use super::PendingBuild;
 
@@ -74,6 +77,7 @@ pub mod postgres_db {
     use super::Database;
 
     pg_table!(builds)
+    pg_table!(commits)
 
     pub struct PostgresDatabase {
         db: Mutex<Connection>
@@ -110,14 +114,14 @@ pub mod postgres_db {
         }
     }
 
-    fn get_one_build(conn: &Connection) -> Option<Build> {
+    fn get_one_build(conn: &GenericConnection) -> Option<Build> {
         BuildSearch::new()
             .where_status((&Pending).to_int())
             .search(conn, Some(1)).pop()
     }
 
     // returns true if it was able to lock it, else false
-    fn try_lock_build(conn: &Connection, b: &Build) -> bool {
+    fn try_lock_build(conn: &GenericConnection, b: &Build) -> bool {
         BuildUpdate::new()
             .status_to((&InProgress).to_int())
             .where_id(b.id)
@@ -125,6 +129,24 @@ pub mod postgres_db {
             .update(conn) == 1
     }
 
+    trait ToPendingBuild {
+        fn to_pending_build(&self, conn: &GenericConnection) -> PendingBuild;
+    }
+
+    impl ToPendingBuild for Build {
+        fn to_pending_build(&self, conn: &GenericConnection) -> PendingBuild {
+            let commit = CommitSearch::new()
+                .where_id(self.commit_id)
+                .search(conn, Some(1))
+                .pop()
+                .unwrap(); // should be in there
+            PendingBuild {
+                clone_url: Url::parse(commit.clone_url.as_slice()).unwrap(),
+                branch: commit.branch_name
+            }
+        }
+    }
+    
     impl Database for PostgresDatabase {
         fn add_pending(&self, entry: PushNotification) {
             // self.with_connection(|conn| {
@@ -134,19 +156,21 @@ pub mod postgres_db {
         }
 
         fn get_pending(&self) -> Option<PendingBuild> {
-            None
-            // self.with_connection(|conn| {
-            //     loop {
-            //         match get_one_build(conn) {
-            //             Some(b) => {
-            //                 if try_lock_build(conn, &b) {
-            //                     return Some(b);
-            //                 }
-            //             },
-            //             None => { return None; }
-            //         }
-            //     }
-            // })
+            self.with_connection(|conn| {
+                loop {
+                    let trans = conn.transaction().unwrap();
+                    match get_one_build(&trans) {
+                        Some(b) => {
+                            let res = try_lock_build(&trans, &b);
+                            assert!(res);
+                            if trans.commit().is_ok() {
+                                return Some(b.to_pending_build(conn))
+                            }
+                        },
+                        None => { return None; }
+                    }
+                }
+            })
         }
 
         fn add_test_results(&self, entry: &PendingBuild, results: BuildResult) {
