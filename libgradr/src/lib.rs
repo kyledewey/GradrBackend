@@ -1,4 +1,4 @@
-#![feature(phase)]
+#![feature(phase, macro_rules)]
 
 pub mod builder;
 pub mod database;

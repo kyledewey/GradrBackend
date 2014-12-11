@@ -1,3 +1,5 @@
+extern crate time;
+
 pub trait MessagingUnwrapper<A> {
     fn unwrap_msg(self, orig_line: uint) -> A;
 }
@@ -28,3 +30,16 @@ impl<A> MessagingUnwrapper<A> for Option<A> {
         }
     }
 }
+
+pub fn current_time_millis() -> i64 {
+    let timespec = time::get_time();
+    timespec.sec + timespec.nsec as i64 / 1000 / 1000
+}
+
+macro_rules! do_timing(
+    ($what: stmt) => (
+        let start_time = current_time_millis();
+        $what;
+        let end_time = current_time_millis();
+        println!("TIME TAKEN: {}ms", end_time - start_time);
+        ))

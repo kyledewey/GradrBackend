@@ -71,6 +71,7 @@ pub mod postgres_db {
     use super::postgres::{Connection, GenericConnection, SslMode, ToSql};
 
     use builder::BuildResult;
+
     use super::EntryStatus::{Pending, InProgress, Done};
     use super::Database;
 
@@ -258,18 +259,36 @@ pub mod postgres_db {
         fn get_pending(&self) -> Option<PendingBuild> {
             self.with_connection(|conn| {
                 loop {
-                    let trans = conn.transaction().unwrap();
-                    match get_one_build(&trans) {
+                    match get_one_build(conn) {
                         Some(b) => {
-                            let res = try_lock_build(&trans, &b);
-                            assert!(res);
-                            if trans.commit().is_ok() {
-                                return Some(b.to_pending_build(conn))
+                            if try_lock_build(conn, &b) {
+                                return Some(b.to_pending_build(conn));
                             }
                         },
                         None => { return None; }
                     }
                 }
+                            
+                // Code below uses a transaction to accomplish the same
+                // thing.  In small tests there doesn't seem to be any
+                // difference in timing, so I'm defaulting to the simpler,
+                // lock-free approach above
+                // loop {
+                //     let start_time = current_time_millis();
+                //     let trans = conn.transaction().unwrap();
+                //     match get_one_build(&trans) {
+                //         Some(b) => {
+                //             let res = try_lock_build(&trans, &b);
+                //             assert!(res);
+                //             if trans.commit().is_ok() {
+                //                 let end_time = current_time_millis();
+                //                 println!("TIME TAKEN: {}ms", end_time - start_time);
+                //                 return Some(b.to_pending_build(conn))
+                //             }
+                //         },
+                //         None => { return None; }
+                //     }
+                // }
             })
         }
 
