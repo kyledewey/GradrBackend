@@ -26,7 +26,7 @@ pub struct PendingBuild {
 }
 
 /// Type A is some key
-pub trait Database : Sync + Send {
+pub trait Database : Send {
     fn add_pending(&self, entry: PushNotification);
 
     /// Optionally gets a pending build from the database.
@@ -66,8 +66,6 @@ pub mod postgres_db {
     use self::time::{now, Timespec};
     use self::pg_typeprovider::util::Joinable;
 
-    use std::sync::Mutex;
-
     use super::postgres::{Connection, GenericConnection, SslMode, ToSql};
 
     use builder::BuildResult;
@@ -82,14 +80,14 @@ pub mod postgres_db {
     pg_table!(submissions)
 
     pub struct PostgresDatabase {
-        db: Mutex<Connection>
+        db: Connection
     }
 
     impl PostgresDatabase {
         pub fn new(loc: &str) -> Option<PostgresDatabase> {
             Connection::connect(loc, &SslMode::None).ok().map(|db| {
                 PostgresDatabase {
-                    db: Mutex::new(db)
+                    db: db
                 }
             })
         }
@@ -116,7 +114,7 @@ pub mod postgres_db {
         }
 
         pub fn with_connection<A>(&self, f: |&Connection| -> A) -> A {
-            f(&*self.db.lock())
+            f(&self.db)
         }
     }
 

@@ -29,7 +29,7 @@ use serialize::json::{ToJson, from_str};
 
 static ADDR: IpAddr = Ipv4Addr(127, 0, 0, 1);
 
-fn end_to_end<D: Database>(db: D,
+fn end_to_end<D: Database>(make_db: || -> D,
                            port: Port,
                            send: Vec<Sendable>,
                            is_done: |&D| -> bool) { 
@@ -41,14 +41,14 @@ fn end_to_end<D: Database>(db: D,
     let done1 = Arc::new(RWLock::new(false));
     let done2 = done1.clone();
 
-    let db1 = Arc::new(db);
-    let db2 = db1.clone();
-    let db3 = db1.clone();
+    let db1 = make_db();
+    let db2 = make_db();
+    let db3 = make_db();
 
     // notification sender
     spawn(proc() {
         for _ in range(0, len) {
-            let res = running_server.notification_event_loop_step(&*db1);
+            let res = running_server.notification_event_loop_step(&db1);
             assert!(res);
         }
         running_server.send_finish();
@@ -57,7 +57,7 @@ fn end_to_end<D: Database>(db: D,
     // worker
     spawn(proc() {
         while !*done1.read() {
-            worker_loop_step(&*db2);
+            worker_loop_step(&db2);
         }
     });
 
@@ -70,7 +70,7 @@ fn end_to_end<D: Database>(db: D,
     for _ in range(0, 600u) {
         timer::sleep(Duration::milliseconds(10));
 
-        if is_done(&*db3) {
+        if is_done(&db3) {
             success = true;
             break;
         }
@@ -132,7 +132,7 @@ fn full_end_to_end() {
         })
     }; // is_done
 
-    end_to_end(PostgresDatabase::new_testing().unwrap(),
+    end_to_end(|| PostgresDatabase::new_testing().unwrap(),
                12347,
                vec!(
                    SendPush(PushNotification {
