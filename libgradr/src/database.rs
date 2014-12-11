@@ -291,21 +291,14 @@ pub mod postgres_db {
         }
 
         fn add_test_results(&self, entry: &PendingBuild, results: BuildResult) {
-            // TODO: we do a copy here because we cannot move into a closure,
-            // even though this is what we want.  I spent around 2 hours trying
-            // to get around this, but to no avail.
-
-            let res = results.consume_to_json().to_string();
-            let s = res.as_slice();
-            self.with_connection(|conn| {
-                let num_updated = 
-                    BuildUpdate::new()
-                    .status_to((&Done).to_int())
-                    .results_to(s.to_string())
-                    .where_id(entry.build_id)
-                    .update(conn);
-                assert_eq!(num_updated, 1);
-            });
+            let num_updated =
+                BuildUpdate::new()
+                .status_to((&Done).to_int())
+                .results_to(results.consume_to_json().to_string())
+                .where_id(entry.build_id)
+                // not using with_connection to avoid copying results
+                .update(&self.db);
+            assert_eq!(num_updated, 1);
         }
     }
 }
