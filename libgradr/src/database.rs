@@ -99,10 +99,14 @@ pub mod postgres_db {
             match retval {
                 Some(ref db) => {
                     db.with_connection(|conn| {
-                        conn.execute(
-                            "DELETE FROM users", &[]).unwrap();
-                        conn.execute(
-                            "DELETE FROM builds", &[]).unwrap();
+                        let delete_table = |s: &str| {
+                            conn.execute(
+                                format!("DELETE FROM {}", s).as_slice(),
+                                &[]).unwrap();
+                        };
+                        delete_table("builds");
+                        delete_table("commits");
+                        delete_table("submissions");
                     })
                 },
                 None => ()
@@ -248,7 +252,7 @@ pub mod postgres_db {
                         trans.finish().unwrap();
                     }
                 }
-            })
+            });
         }
 
         fn get_pending(&self) -> Option<PendingBuild> {

@@ -6,7 +6,7 @@ use database::Database;
 
 /// A = key type
 /// B = WholeBuildable type
-pub fn worker_loop_step<B : WholeBuildable, A : ToWholeBuildable<B>, D : Database>(db: &D) {
+pub fn worker_loop_step<D : Database>(db: &D) {
     match db.get_pending() {
         Some(ref a) => {
             // cannot do this as a one-liner, because we transfer ownership
