@@ -57,6 +57,7 @@ pub mod postgres_db {
     extern crate time;
     extern crate pg_typeprovider;
     extern crate github;
+    extern crate openssl;
 
     use super::PendingBuild;
 
@@ -66,6 +67,8 @@ pub mod postgres_db {
     use self::time::{now, Timespec};
     use self::pg_typeprovider::util::Joinable;
 
+    use self::openssl::ssl::{SslContext, SslMethod};
+
     use super::postgres::{Connection, GenericConnection, SslMode, ToSql};
 
     use builder::BuildResult;
@@ -73,11 +76,15 @@ pub mod postgres_db {
     use super::EntryStatus::{Pending, InProgress, Done};
     use super::Database;
 
-    pg_table!(builds)
-    pg_table!(commits)
-    pg_table!(users)
-    pg_table!(assignments)
-    pg_table!(submissions)
+    // TODO: these must all be string literals, so we can't
+    // simply define a constant.  Defining a macro is also not
+    // enough, since pg_table! will not expand passed macros (yet),
+    // so it sees only a macro invocation.
+    pg_table!(builds, "postgres://jroesch@localhost/gradr-test")
+    pg_table!(commits, "postgres://jroesch@localhost/gradr-test")
+    pg_table!(users, "postgres://jroesch@localhost/gradr-test")
+    pg_table!(assignments, "postgres://jroesch@localhost/gradr-test")
+    pg_table!(submissions, "postgres://jroesch@localhost/gradr-test")
 
     pub struct PostgresDatabase {
         db: Connection
@@ -85,11 +92,14 @@ pub mod postgres_db {
 
     impl PostgresDatabase {
         pub fn new(loc: &str) -> Option<PostgresDatabase> {
-            Connection::connect(loc, &SslMode::None).ok().map(|db| {
-                PostgresDatabase {
-                    db: db
-                }
-            })
+            Connection::connect(
+                loc,
+                &SslMode::Require(
+                    SslContext::new(SslMethod::Sslv23).unwrap())).ok().map(|db| {
+                    PostgresDatabase {
+                        db: db
+                    }
+                })
         }
 
         pub fn new_testing() -> Option<PostgresDatabase> {
