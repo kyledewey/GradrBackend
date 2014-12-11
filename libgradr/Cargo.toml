@@ -9,6 +9,8 @@ authors = ["Kyle Dewey <kyledewey@cs.ucsb.edu>"]
 name = "libgradr"
 path = "src/lib.rs"
 
+[dependencies]
+openssl = "0.2.1"
 
 [dependencies.postgres]
 git = "https://github.com/sfackler/rust-postgres.git"
