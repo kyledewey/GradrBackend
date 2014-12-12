@@ -91,7 +91,7 @@ pub mod postgres_db {
     }
 
     impl PostgresDatabase {
-        pub fn new(loc: &str) -> Option<PostgresDatabase> {
+        fn new(loc: &str) -> Option<PostgresDatabase> {
             Connection::connect(
                 loc,
                 &SslMode::Require(
@@ -100,6 +100,11 @@ pub mod postgres_db {
                         db: db
                     }
                 })
+        }
+
+        pub fn new_development() -> Option<PostgresDatabase> {
+            PostgresDatabase::new(
+                "postgres://jroesch@localhost/gradr-dev")
         }
 
         pub fn new_testing() -> Option<PostgresDatabase> {
