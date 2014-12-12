@@ -143,6 +143,7 @@ pub mod postgres_db {
     fn try_lock_build(conn: &GenericConnection, b: &Build) -> bool {
         BuildUpdate::new()
             .status_to((&InProgress).to_int())
+            .created_at_to(now().to_timespec())
             .where_id(b.id)
             .where_status((&Pending).to_int())
             .update(conn) == 1
