@@ -233,6 +233,7 @@ pub mod github {
     extern crate github;
 
     use std::io::Command;
+    use std::rand;
 
     use self::github::notification::PushNotification;
     use self::github::clone_url::CloneUrl;
@@ -244,22 +245,23 @@ pub mod github {
     use util::MessagingUnwrapper;
 
     pub struct GitHubRequest {
-        build_root: Path,
+        build_dir: Path,
         branch: String,
         clone_url: CloneUrl,
         testing_req: TestingRequest,
     }
 
     impl GitHubRequest {
-        pub fn new(pn: &PushNotification, build_root: Path, makefile_loc: Path) -> GitHubRequest {
-            let mut dir = build_root.clone();
-            dir.push(pn.clone_url.project_name());
+        pub fn new(pn: &PushNotification, mut build_root: Path, makefile_loc: Path) -> GitHubRequest {
+            // Each build should be isolated in its own directory; simple
+            // hack is to use large random numbers to achieve this
+            build_root.push(rand::random::<u64>().to_string());
             
             GitHubRequest {
-                build_root: build_root,
+                build_dir: build_root.clone(),
                 branch: pn.branch.clone(),
                 clone_url: pn.clone_url.clone(),
-                testing_req: TestingRequest::new(dir, makefile_loc)
+                testing_req: TestingRequest::new(build_root, makefile_loc)
             }
         }
     }
@@ -270,12 +272,16 @@ pub mod github {
         fn test_timeout(&self) -> Option<u64> { None }
         
         fn env_commands(&self) -> Vec<Command> {
+            let mut mkdir = Command::new("mkdir");
+            mkdir.arg(self.build_dir.as_str().unwrap_msg(line!()));
+
             let mut clone = Command::new("git");
             clone.arg("clone").arg("-b").arg(self.branch.as_slice());
             clone.arg(self.clone_url.url.serialize());
-            clone.cwd(&self.build_root);
+            clone.arg(".");
+            clone.cwd(&self.build_dir);
 
-            let mut retval = vec!(clone);
+            let mut retval = vec!(mkdir, clone);
             retval.push_all(self.testing_req.env_commands().as_slice());
             retval
         }
@@ -311,7 +317,8 @@ pub mod github {
         #[allow(unused_must_use)]
         fn drop(&mut self) {
             let mut c = Command::new("rm");
-            c.arg("-rf").arg(self.testing_req.dir.as_str().unwrap_msg(line!()));
+            c.arg("-rf");
+            c.arg(self.build_dir.as_str().unwrap_msg(line!()));
             run_command(&c, None, ());
         }
     }
