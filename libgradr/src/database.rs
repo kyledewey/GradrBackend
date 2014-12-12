@@ -80,11 +80,11 @@ pub mod postgres_db {
     // simply define a constant.  Defining a macro is also not
     // enough, since pg_table! will not expand passed macros (yet),
     // so it sees only a macro invocation.
-    pg_table!(builds, "postgres://jroesch@localhost/gradr-test")
-    pg_table!(commits, "postgres://jroesch@localhost/gradr-test")
-    pg_table!(users, "postgres://jroesch@localhost/gradr-test")
-    pg_table!(assignments, "postgres://jroesch@localhost/gradr-test")
-    pg_table!(submissions, "postgres://jroesch@localhost/gradr-test")
+    pg_table!(builds, "postgres://jroesch:password@railsdb.cblx9rk1d5gu.us-east-1.rds.amazonaws.com/gradr-test")
+    pg_table!(commits, "postgres://jroesch:password@railsdb.cblx9rk1d5gu.us-east-1.rds.amazonaws.com/gradr-test")
+    pg_table!(users, "postgres://jroesch:password@railsdb.cblx9rk1d5gu.us-east-1.rds.amazonaws.com/gradr-test")
+    pg_table!(assignments, "postgres://jroesch:password@railsdb.cblx9rk1d5gu.us-east-1.rds.amazonaws.com/gradr-test")
+    pg_table!(submissions, "postgres://jroesch:password@railsdb.cblx9rk1d5gu.us-east-1.rds.amazonaws.com/gradr-test")
 
     pub struct PostgresDatabase {
         db: Connection
@@ -104,12 +104,12 @@ pub mod postgres_db {
 
         pub fn new_development() -> Option<PostgresDatabase> {
             PostgresDatabase::new(
-                "postgres://jroesch@localhost/gradr-dev")
+                "postgres://jroesch:password@railsdb.cblx9rk1d5gu.us-east-1.rds.amazonaws.com/gradr-dev")
         }
 
         pub fn new_testing() -> Option<PostgresDatabase> {
             let retval = PostgresDatabase::new(
-                "postgres://jroesch@localhost/gradr-test");
+                "postgres://jroesch:password@railsdb.cblx9rk1d5gu.us-east-1.rds.amazonaws.com/gradr-test");
             match retval {
                 Some(ref db) => {
                     db.with_connection(|conn| {
