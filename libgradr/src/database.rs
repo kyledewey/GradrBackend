@@ -305,6 +305,7 @@ pub mod postgres_db {
                 BuildUpdate::new()
                 .status_to((&Done).to_int())
                 .results_to(results.consume_to_json().to_string())
+                .updated_at_to(now().to_timespec())
                 .where_id(entry.build_id)
                 // not using with_connection to avoid copying results
                 .update(&self.db);
