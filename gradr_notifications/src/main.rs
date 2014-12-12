@@ -10,8 +10,7 @@ static PORT: u16 = 1337;
 
 #[cfg(not(test))]
 fn main() {
-    let db = PostgresDatabase::new(
-        "postgres://jroesch@localhost/gradr-production").unwrap();
+    let db = PostgresDatabase::new_development().unwrap();
 
     let server = GitHubServer::new(Ipv4Addr(0, 0, 0, 0), PORT);
     let running_server = server.event_loop().unwrap();
