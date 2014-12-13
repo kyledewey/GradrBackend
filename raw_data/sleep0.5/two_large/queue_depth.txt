@@ -1,0 +1,42 @@
+    Updating registry `https://github.com/rust-lang/crates.io-index`
+   Compiling libgradr v0.0.1 (file:///home/ubuntu/GradrBackend/gradr_queue_depth)
+   Compiling gradr_queue_depth v0.0.1 (file:///home/ubuntu/GradrBackend/gradr_queue_depth)
+     Running `target/gradr_queue_depth 1`
+0: 100
+1: 100
+2: 100
+3: 100
+4: 100
+5: 100
+6: 100
+7: 100
+8: 100
+9: 100
+10: 100
+11: 100
+12: 100
+13: 100
+14: 99
+15: 95
+16: 90
+17: 84
+18: 80
+19: 75
+20: 71
+21: 64
+22: 60
+23: 55
+24: 51
+25: 45
+26: 40
+27: 35
+28: 31
+29: 25
+30: 20
+31: 15
+32: 11
+33: 6
+34: 1
+35: 0
+36: 0
+37: 0
