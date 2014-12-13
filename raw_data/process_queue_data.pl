@@ -9,7 +9,9 @@ use warnings;
 my $lastNum = undef;
 my $timePoint = 0;
 my $inputFile = shift() or die "Needs an input file";
-open(INPUT, "<$inputFile");
+open(INPUT, "<$inputFile") or die "Could not open input file: '$inputFile'";
+my $outputFile = "$inputFile.csv";
+open(OUTPUT, ">$outputFile") or die "Could not open output file: '$outputFile'";
 
 while (my $line = <INPUT>) {
     chomp($line);
@@ -18,21 +20,19 @@ while (my $line = <INPUT>) {
 	    $lastNum = $1;
 	    next;
 	} elsif ($2 == 0) {
-	    print "$timePoint,0\n";
+	    print OUTPUT "$timePoint,0\n";
 	    last;
 	} else {
 	    if ($timePoint == 0) {
 		# first non-hundred number.
-		print "0,100\n";
+		print OUTPUT "0,100\n";
 		$timePoint++;
 	    }
-	    print "$timePoint,$2\n";
+	    print OUTPUT "$timePoint,$2\n";
 	    $timePoint++;
 	}
     }
 }
 
 close(INPUT);
-
-	
-	    
+close(OUTPUT);
