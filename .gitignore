@@ -47,3 +47,6 @@ build/
 # Emacs temp files
 *~
 \#*\#
+
+# Mac temp stuff
+.DS_Store
