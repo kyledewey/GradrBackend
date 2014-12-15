@@ -392,11 +392,95 @@ While these results are quite impressive, there are still a multitude of improve
 
 \section{Experience Report}
 
-\subsection{On the Usage of the Rust Programming Language}
-The entire backend is implemented in the Rust programming language~\cite{rust}.
+This section details various lessons learned regarding how Gradr was implemented.
+These are not directly relevant to Gradr itself or to Gradr's scalability and performance, but they are considered nonetheless interesting and so have been included.
 
-\subsubsection{Advantages and Challenges}
+\subsection{On the Usage of the Rust Programming Language}
+While the frontend is implemented in Ruby~\cite{ruby} and Rails~\cite{rails}, the notification listener and the worker are implemented in the Rust programming language~\cite{rust}.
+Rust is much more like C than Ruby, being a statically-typed systems programming language which ultimately compiles down to machine code.
+However, unlike C code, Rust code has strong, statically-known properties pertaining to memory safety, including (but not limited to):
+\begin{itemize}
+  \item No \texttt{null} pointer dereferences (there is no \texttt{null})
+  \item No dangling pointers
+  \item No memory leaks (or, alternatively, no more memory leaks than those possible in Java)
+  \item No data races (as in multithreaded code)
+\end{itemize}
+That is, by construction, well-typed Rust programs are statically known to not have any of the above problems.
+This makes it a much more attractive language than C for doing systems programming.
+
+By using Rust, we gain much stronger guarantees about the correctness of our code than possible with Ruby.
+Additionally, Rust programs are not garbage collected, so theoretically they have very predictable performance.
+These properties make Rust highly attractive to work with when it comes to workers, as this is arguably the most heavily executed portion of the system and is certainly the most complex.
+
+\subsubsection{Advantages in Practice}
+In practice, Rust gave us a lot of advantages which are simply not possible with most languages.
+The most apparent advantage can be seen with the highly regular graphs measuring queue size in Sections~\ref{sec:sleephalf} and~\ref{sec:sleep3} --- there is no garbage collection to introduce sudden, unexpected pauses.
+However, the greatest advantages were seen purely in development.
+Very little of the development time was in debugging --- most everything was pure design and coding.
+This was because of not only the language's static type system, but because it encourages very functional idioms.
+While it supports mutable state, it is restricted so that all mutation is thread-safe by construction.
+This forces the programmer to think very hard about state which is not immutable, resulting in very modular code.
+The language is also very restrictive when it comes to aliasing objects, e.g., one cannot alias an object twice and then mutate it, for this could potentially lead to a data race.
+Again, this forces modular design.
+
+What is truly amazing about these restrictions is that after an initial barrier to entry is crossed (approximately one week for the writer), they become second nature.
+After this point, all the fights the writer had with the compiler turned out to be subtle issues which could actually have been problematic.
+The language truly makes you appreciate what you cannot due.
+
 \subsubsection{Database Operations}
+Another feature of Rust is that it supports compiler plugins which are themselves written in Rust.
+This can be used to generate code at compile time for specific purposes.
+In doing so, we gain many of the metaprogramming advantages common to Ruby, but with much stronger guarantees about correctness.
+This feature of Rust was used extensively for a novel purpose: generation of database queries.
+
+While Postgres bindings for Rust are available, these are still problematic because:
+\begin{enumerate}
+  \item There is nothing stopping the user from issuing an ill-typed query.
+    For example, if a given field \texttt{f} is an integer in the database, it is still possible to pass a string.
+
+  \item These force queries to be embedded into the code, which is poor practice if the schema may change in the future.
+    Schema changes will break queries, but this can be discovered only dynamically.
+\end{enumerate}
+
+To address this problem, we developed a compiler plugin which, at compile time, will:
+\begin{enumerate}
+  \item Connect to a specified database
+  \item Read the schema
+  \item Generate schema-specific data structures, accessors, and other routines
+\end{enumerate}
+Using this technique, it is no longer possible to issue an ill-typed query --- this will be revealed as a Rust type error.
+Additionally, if the schema changes in a way that is incompatible with what is already present (e.g., a field is renamed), then this will be revealed as another kind of Rust type error.
+While the development of this plugin took a substantial amount of time, it quickly paid for itself a handful of times when the schema did change and suddenly code no longer compiled.
+
+\subsubsection{Challenges with Rust}
+There was, however, a major downside to using Rust: language instability.
+Rust is under active development by Mozilla~\cite{mozilla}, and is currently in Alpha status.
+As a result, an all-to-frequent phenomenon is that code which worked yesterday will not work today, as breaking changes occur frequently.
+This occurred no less than four times during development, and ate up over 20 hours of developer time.
+While no change forced fundamental restructuring or anything otherwise severe in Gradr, Gradr pulls in dozens of dependencies, some of which did need more significant change.
+The author became a contributor to 13 unrelated projects in the process, as upstream breaks were patched.
+
+Many of these issues should be addressed with the upcoming Beta release of Rust, which is scheduled to occur within the next month of this writing.
+Additionally, while development occurred, a central repository of Rust projects was formed, which is amenable to specifying specific versions of things (as opposed to being forced to always use the most recent version).
+Even so, this was a very frustrating and demotivating part of the experience.
+
+\subsection{On the Usage of Agile Methodology}
+While we had originally set out to use Agile methodology for development, this was initially hampered by time constraints which prevented much progress from occurring early on.
+For the development of non-frontend components, after the first few weeks, I (Kyle) attempted to stick to a plan of incremental progress, central to Agile.
+I have some mixed feelings about the experience.
+I found it was excellent for getting early functionality up, and got us a prototype faster than I could have imagined.
+However, after this point things became difficult.
+I had put a lot of emphasis on testability, and this ended up leading to interfaces which were poisoned with testing concerns.
+There was also a situation in which a focus on getting functionality up led to the accumulation of technical debt which I would not otherwise have taken on, and this amounted to wasted time.
+
+In retrospect, on the testing end of things, I believe the major problem was not with Agile, but with the fact that I was combining a new development technique along with learning a new language.
+Rust's primary method of forming abstractions, that of typeclasses, is very different from the standard OOP classes most people are familiar with.
+Additionally, the sort of memory guarantees Rust provides are only possible because the type system itself forces you to think about memory a bit, and without some care this can lead to a poor separation of concerns (e.g., does it make sense to allow something to mutate a given object in general?).
+The end result was some very abstract, overcomplex code, which were poisoned with bizarre memory concerns.
+It would have been better to get the most simple components correct first, and then worry about how to test them.
+
+As for the accumulation of technique debt, a better option would have been to change the objective.
+The only reason the debt was accumulated is because I looked at what was in reality a soft deadline as a hard deadline, and this was unnecessary.
 
 \section{Links}
 All components of Gradr are open-sourced.
