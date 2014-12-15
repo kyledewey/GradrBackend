@@ -58,7 +58,7 @@ A description of the different components in Gradr follows:
 
 A graphical representation of these components, along with the data flow between them, can be seen in Figure~\ref{fig:system_overview}.
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{non_graph_images/system_overview.jpg}
   \end{center}
@@ -143,7 +143,7 @@ We breakdown the results according to the type of the code submission used (eith
 \label{sec:sleephalf}
 Charts showing the queue length reduction over time are shown below in Figures~\ref{fig:sleephalf_one_small_queuelength}, \ref{fig:sleephalf_two_small_queuelength}, \ref{fig:sleephalf_four_small_queuelength}, \ref{fig:sleephalf_one_large_queuelength}, and~\ref{fig:sleephalf_two_large_queuelength}.
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep0.5/one_small/graph.jpg}
   \end{center}
@@ -151,7 +151,7 @@ Charts showing the queue length reduction over time are shown below in Figures~\
   \label{fig:sleephalf_one_small_queuelength}
 \end{figure}
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep0.5/two_small/graph.jpg}
   \end{center}
@@ -159,7 +159,7 @@ Charts showing the queue length reduction over time are shown below in Figures~\
   \label{fig:sleephalf_two_small_queuelength}
 \end{figure}
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep0.5/four_small/graph.jpg}
   \end{center}
@@ -167,7 +167,7 @@ Charts showing the queue length reduction over time are shown below in Figures~\
   \label{fig:sleephalf_four_small_queuelength}
 \end{figure}
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep0.5/one_large/graph.jpg}
   \end{center}
@@ -175,7 +175,7 @@ Charts showing the queue length reduction over time are shown below in Figures~\
   \label{fig:sleephalf_one_large_queuelength}
 \end{figure}
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep0.5/two_large/graph.jpg}
   \end{center}
@@ -190,7 +190,7 @@ As such, it seems likely that a subset of the workers started processing builds 
 
 We also measured the global amount of time taken to process all builds between the different worker configurations, shown below in Figure~\ref{fig:sleephalf_all}.
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep0.5/time_to_complete_all.jpg}
   \end{center}
@@ -207,7 +207,7 @@ We also measured the average amount of time taken from the point when a pending 
 This was done for all aforementioned worker configurations.
 The results are shown below in Figure~\ref{fig:sleephalf_each}.
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep0.5/time_to_complete_each.jpg}
   \end{center}
@@ -227,7 +227,7 @@ This shows that Gradr workers have overall very low overhead, and there is not m
 
 Charts showing the queue length reduction over time for the \texttt{sleep3} build are shown below in Figures~\ref{fig:sleep3_one_small_queuelength}, \ref{fig:sleep3_two_small_queuelength}, \ref{fig:sleep3_four_small_queuelength}, \ref{fig:sleep3_one_large_queuelength}, and~\ref{fig:sleep3_two_large_queuelength}.
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep3/one_small/graph.jpg}
   \end{center}
@@ -235,7 +235,7 @@ Charts showing the queue length reduction over time for the \texttt{sleep3} buil
   \label{fig:sleep3_one_small_queuelength}
 \end{figure}
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep3/two_small/graph.jpg}
   \end{center}
@@ -243,7 +243,7 @@ Charts showing the queue length reduction over time for the \texttt{sleep3} buil
   \label{fig:sleep3_two_small_queuelength}
 \end{figure}
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep3/four_small/graph.jpg}
   \end{center}
@@ -251,7 +251,7 @@ Charts showing the queue length reduction over time for the \texttt{sleep3} buil
   \label{fig:sleep3_four_small_queuelength}
 \end{figure}
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep3/one_large/graph.jpg}
   \end{center}
@@ -259,7 +259,7 @@ Charts showing the queue length reduction over time for the \texttt{sleep3} buil
   \label{fig:sleep3_one_large_queuelength}
 \end{figure}
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep3/two_large/graph.jpg}
   \end{center}
@@ -271,7 +271,7 @@ The above results are extremely similar to those of Section~\ref{sec:sleephalf},
 
 We also measured the global amount of time taken to process all builds between the different worker configurations, shown below in Figure~\ref{fig:sleep3_all}.
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep3/time_to_complete_all.jpg}
   \end{center}
@@ -283,7 +283,7 @@ Once again, we draw the same conclusions from Figure~\ref{fig:sleep3_all} as don
 
 As for the average time taken for each build, this data is shown below in Figure~\ref{fig:sleep3_each}.
 
-\begin{figure}[here]
+\begin{figure}[h!]
   \begin{center}
     \includegraphics[scale=0.45]{raw_data/sleep3/time_to_complete_each.jpg}
   \end{center}
@@ -381,13 +381,39 @@ In fact, currently the only part of the system which truly relies on the consist
 As described in Section~\ref{sec:improve_worker}, this is better-suited for SQS~\cite{sqs} anyway.
 With this in mind, Gradr has very high potential to scale to very large proportions.
 
-\section{On the Usage of the Rust Programming Language}
+\section{Conclusions}
+
+Gradr is a distributed automated feedback and grading system, one with a highly scalable architecture.
+Core components have withstood load testing, and has demonstrated perfect horizontal scalability.
+Testing has also shown that the system imparts only a minute amount of overhead, typically only around 300 milliseconds.
+While these results are quite impressive, there are still a multitude of improvements which could be made not only for scalability, but for general usability and security.
+
+\appendix
+
+\section{Experience Report}
+
+\subsection{On the Usage of the Rust Programming Language}
 The entire backend is implemented in the Rust programming language~\cite{rust}.
 
-\subsection{Advantages and Challenges}
-\subsection{Database Operations}
+\subsubsection{Advantages and Challenges}
+\subsubsection{Database Operations}
 
-\section{Conclusions}
+\section{Links}
+All components of Gradr are open-sourced.
+Additionally, in some places components were sectioned off into separate repositories.
+These different projects are described below:
+
+\begin{itemize}
+  \item Code for communicating with the Postgres database is hosted at \url{https://github.com/jroesch/pg-typeprovider}
+
+  \item Code for listening for notifications from GitHub (though not the entire notification listener component) is hosted at \url{https://github.com/jroesch/rust-github}
+
+  \item The notification listener is hosted at \url{https://github.com/scalableinternetservices/GradrBackend}, under the directory \texttt{gradr\_notifications}
+
+  \item The worker is hosted at \url{https://github.com/scalableinternetservices/GradrBackend}, under the directory \texttt{gradr\_worker}
+
+  \item The frontend component is hosted at \url{https://github.com/scalableinternetservices/Gradr}
+\end{itemize}
 
 \bibliography{bibtex}{}
 \bibliographystyle{plain}
