@@ -1,6 +1,7 @@
 \documentclass{scrartcl}
 
 \usepackage{hyperref}
+\usepackage{graphicx}
 
 \begin{document}
 
@@ -55,6 +56,15 @@ A description of the different components in Gradr follows:
     Much like workers, there can exist multiple frontend components at any time.
 \end{description}
 
+A graphical representation of these components, along with the data flow between them, can be seen in Figure~\ref{fig:system_overview}.
+
+\begin{figure}[here]
+  \begin{center}
+    \includegraphics[scale=0.45]{non_graph_images/system_overview.jpg}
+  \end{center}
+  \caption{Diagram of overall Gradr architecture, along with data flow between components and the user}
+  \label{fig:system_overview}
+\end{figure}
 
 \section{Load Testing}
 \subsection{Experimental Setup}
