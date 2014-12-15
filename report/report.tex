@@ -68,6 +68,8 @@ A graphical representation of these components, along with the data flow between
 
 \section{Load Testing}
 \subsection{Critical Paths}
+\label{sec:critical_paths}
+
 With respect to how Gradr is intended to be used, we identify three critical paths:
 
 \begin{itemize}
@@ -133,6 +135,8 @@ Additionally, in a perfectly scalable environment we would expect to see that tw
 This would not be true of a high-contension situation, and would be strong cause to optimize.
 
 \subsection{Results and Discussion}
+\label{sec:results_discussion}
+
 We breakdown the results according to the type of the code submission used (either \texttt{sleephalf} or \texttt{sleep3}).
 
 \subsubsection{\texttt{sleephalf}}
@@ -293,6 +297,8 @@ The prior estimation of 300 milliseconds of system overhead also remains consist
 Overall, we conclude that the critical path involving workers, which is likely to be the most stressed path, is both highly performant and scalable.
 
 \subsection{Load Testing Other Critical Paths}
+\label{sec:load_testing_other_critical_paths}
+
 Some attempt was also made at stressing the path from GitHub to the notification listener.
 For this experiment, 10 threads sequentially kept sending push notifications directly to the notification listener, bypassing GitHub on the assumption that GitHub may throttle back notifications.
 A visible connection backlog was set to one, in an attempt to force a \texttt{POST} failure.
@@ -307,39 +313,81 @@ If this is true, it would take an enourmous amount of stress to start seeing fai
 As for the frontend, there has not been sufficient effort on load testing it due primarily to lack of time.
 However, in Section~\ref{sec:performance_improvements}, we do discuss possible issues and solutions in this critical path.
 
-\section{Possible Improvements}
+\section{Possible Further Improvements}
 \label{sec:performance_improvements}
 
+This section describes possible improvements which can be made to individual components.
+While the primary focus is on improving scalability with respect to the critical paths discussed in Section~\ref{sec:critical_paths}, there are some other miscellaneous improvements of interest as well.
+
 \subsection{Frontend}
-Put it behind a load balancer.
+\label{sec:improve_frontend}
 
-TODO: actually describe this.
-\subsection{Backend}
-\subsubsection{Notification Listener}
-Make multithreaded, put behind a load balancer.
+Currently, while multiple instances of the frontend can be run in parallel, they are not unified behind a single URL due to the lack of a proper load balancer.
+An obvious improvement here is use a load balancer, which should address frontend issues.
+While this alone is likely insufficient for a typical app, with Gradr, we suspect that this would get us a long way.
+The primary purpose of the frontend is to communicate build results to the user, and the only intended modifications are infrequent, relatively inexpensive administrative-style tasks like adding classes and assignments.
+As such, the frontend is only read-centric, and in a very particular way, so contention here with the database is expected to be low.
 
-TODO: actually describe this.
-\subsubsection{Worker}
-If a worker fails, it can leave the system in an inconsistent state, where a submission is marked as submitted but is never built.
-This can be addressed by using a fault-tolerant queue like SQS~\cite{sqs} for communication between the notification listener and workers.
+Even if database contension here starts increasing, there is a lot that could be done to amend this situation.
+We observe that once results are uploaded to the database, the entry does not change, nor do the results.
+As such, Postgres read replicas should do well here.
+Moreover, we could be much more intelligent, and store the results in an auxilliary place like S3~\cite{s3} or DynamoDB~\cite{dynamodb}.
+With such a setup, the database exists purely to store metadata (which is small and needs strong guarantees about synchronization), and the auxilliary store exists purely to store results (which are large, unchanging, and are quite amenable to an eventually-consistent model).
 
-TODO: actually describe this.
-\subsubsection{Postgres}
-Read replications.
+\subsection{Notification Listener}
+While Section~\ref{sec:load_testing_other_critical_paths} demonstrated that the notification listener does not currently have any problems responding to moderate numbers of requests, this is not to say that improvements should not be made.
+In fact, there is quite a bit of room for improvement here.
+One obvious improvement is to serve requests in parallel, which would be fairly easy to do thanks to the way the code is architected.
+Beyond this simple change, as described with the frontend in Section~\ref{sec:improve_frontend}, we could put a load balancer in front of the notification listener.
 
-TODO: actually describe this.
+One other potential improvemnent for the notification listener involves how it interacts with the database.
+Currently, the notification listener must update three separate tables upon the insertion of a single build, which is performed in a transaction which spans several queries.
+This portion of the system is ripe for denormalization~\cite{denormalization}, which would allow us to perform the update in a single query.
+Not only would this mean a less complex transaction, it most likely would improve performance.
 
-\subsubsection{Auxilliary Storage for Results}
-Results can be huge, and are stored in Postgres right now for simplicity.
-These could be put into an auxilliary, eventually consistent data storage if downloading results from Postgres becomes a burden.
+\subsection{Worker}
+\label{sec:improve_worker}
 
-TODO: actually describe this.
+As shown in Section~\ref{sec:results_discussion}, there is not a whole lot that can be improved scalability-wise when it comes to workers.
+However, there is still more that could be done here.
+For one, while workers can be currently added dynamically without a problem, removing workers is more difficult.
+This is because workers ``take'' a pending build from the database by marking a special field as being in-progress, and workers know not to take in-progress builds.
+This means that if a worker marks a field as in-progress and subsequently crashes before uploading the results, the build will never be completed.
+Not only does this make removing workers a pain, it means that they are not very fault-tolerant.
+
+To address this issue, SQS~\cite{sqs} would be a much better choice than Postgres for selecting builds.
+With SQS, in order to remove an item from a queue permanently, one must both dequeue and mark it as complete to SQS.
+If a thread dequeues but fails to mark it complete, then the item will reappear in the queue after a configurable amount of time.
+This means that in the crash scenario, we would dequeue but never mark it as complete, so the build would reappear to other workers for processing.
+As long as workers only mark a build as complete when the results have been uploaded, this fault tolerance issue will disappear.
+(Workers can also ask SQS for more time, and indicate that they have not crashed in doing so.)
+
+Another problem with workers relates to both configurability and security.
+Currently, it is assumed that all assignments in the system can be compiled and run with the same makefile, which is unrealistic.
+More importantly, builds are performed without any sort of sandboxing, so it would be relatively easy for a malicious student to take control of a worker.
+This would be disasterous, as with some ingenuity the student could gain access to the database, and in so doing take control over nearly the entire system and its data.
+
+It turns out that both these problems can be addressed using the same tool: Docker~\cite{docker}.
+Docker allows for virtualization on top of Linux, and can prevent access to the Internet or to the rest of the filesystem.
+This would make it so that even if a malicious student were to take control, they would only take control of a highly restricted slice.
+Docker would also allow instructors to assemble their own custom environments on a per-assignment basis, allowing for not just custom makefiles, but even things like arbitrary input files and compilers with specific versions.
+While the use of Docker would likely increase the amount of time it would take to process individual builds, the benefits are clear.
+
+\subsection{On the Need for a Relational Database}
+As discussed in~\ref{sec:improve_frontend}, test results are amenable to eventually-consistent database models.
+It turns out that this is true for most data in Gradr --- classes, assignments, and users, the primary kinds of non-test data, all have the property of being rarely updated.
+As such, moving this to an eventually-consistent datastore should not be a huge burden.
+In fact, currently the only part of the system which truly relies on the consistency guarantees is that of the worker thread, which needs to be able to lock a pending build while it is being processed.
+As described in Section~\ref{sec:improve_worker}, this is better-suited for SQS~\cite{sqs} anyway.
+With this in mind, Gradr has very high potential to scale to very large proportions.
 
 \section{On the Usage of the Rust Programming Language}
 The entire backend is implemented in the Rust programming language~\cite{rust}.
 
 \subsection{Advantages and Challenges}
 \subsection{Database Operations}
+
+\section{Conclusions}
 
 \bibliography{bibtex}{}
 \bibliographystyle{plain}
