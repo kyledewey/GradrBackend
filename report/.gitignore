@@ -1,0 +1,8 @@
+# Tex files
+*.log
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.pdf
