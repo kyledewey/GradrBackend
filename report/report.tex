@@ -67,7 +67,71 @@ A graphical representation of these components, along with the data flow between
 \end{figure}
 
 \section{Load Testing}
+\subsection{Critical Paths}
+With respect to how Gradr is intended to be used, we identify three critical paths:
+
+\begin{itemize}
+  \item The process of polling pending builds from the database and putting results into the database
+  \item The process of putting a pending build into the database from a GitHub \texttt{push} notification
+  \item Users viewing build results on the frontend
+\end{itemize}
+
+The rest of the report focuses on the first of these tasks, as it is expected to be the most executed part of the architecture.
+
 \subsection{Experimental Setup}
+For all experimenents, we used RDS~\cite{rds} with a single \texttt{db.ts.small} instance.
+As we focus only on builds, the number of notification listeners and frontend systems was kept constant at one.
+
+Submitted code was carefully controlled, and kept uniform for the duration of individual experiments.
+The actual submitted code can be found at \url{https://github.com/kyledewey/test-gradr}.
+Two student submissions were used, described below:
+\begin{description}
+  \item[sleephalf] \hfill \\
+    Under the \texttt{sleephalf} branch, the code when run will sleep for a half of a second, and then print out some fake test results.
+
+  \item[sleep3] \hfill \\
+    Under the \texttt{sleep3} branch, the code when run will sleep for a three seconds, and then print out some fake test results.
+\end{description}
+
+The reason why both submissions simply sleep as opposed to doing a real code build and test cycle is because this cuts out large amount of variability between individual instances.
+We can know for sure that the build should take a precise, fixed amount of time under all circumstances.
+This allows us to focus in on communication overhead within the system and other related issues.
+While this unit time property is unrealistic, in practice, issues pertaining to CPU or IO-intensive builds could be simply adjusted by using bigger instance types, and these are not issues fundamental to Gradr itself.
+
+Workers were distributed in five different ways, described below:
+\begin{description}
+  \item[One Small] \hfill \\
+    A single worker process runs on a single \texttt{t2.small} EC2~\cite{ec2} instance.
+
+  \item[Two Small] \hfill \\
+    Each of two \texttt{t2.small} EC2 instances run a single worker process.
+
+  \item[Four Small] \hfill \\
+    Each of four \texttt{t2.small} EC2 instances run a single worker process.
+
+  \item[One Large] \hfill \\
+    Two worker processes run on a single \texttt{m3.large} EC2 instance.
+
+  \item[Two Large] \hfill \\
+    Each of two \texttt{m3.large} EC2 instances run two worker processes.
+\end{description}
+
+For all experiments, we sent 100 push notifications of whichever chosen repository and branch to the notification listener, initially with no running workers.
+Once all notifications were sent, workers were started in parallel in the formation according to whichever AWS configuration was chosen.
+While experiments are running, we measure the number of pending builds (queue length) over time.
+Once an experiment finishes, we determine the average amount of time each build took, starting from the point where a build was selected for processing and ending with the time the results were posted.
+
+The goal with measuring the queue length over time is to identify any anomalies in communication.
+We would expect in all cases a straight line, and any other shape would indicate issues like contention.
+
+The goal with measuring the average time of each build is to determine the overall overhead of the system itself.
+Since the time each build takes is known in advance, we know that any additional time is purely overhead of our system.
+
+The goal with varying the instance configuration is to identify any sort of unseen computational and network bottlenecks, along with measuring scalability of the system.
+If the worker process is CPU-intensive independent of the actual student code, then this would reveal itself as bigger instance types performing better than smaller instance types.
+Additionally, in a perfectly scalable environment we would expect to see that twice as many worker threads can clear a queue of pending builds in half the time, and so on.
+This would not be true of a high-contension situation, and would be strong cause to optimize.
+
 \subsection{Results and Discussion}
 \section{Possible Improvements}
 \subsection{Frontend}
