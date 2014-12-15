@@ -12,10 +12,79 @@
 \maketitle
 
 \section{Introduction}
+Gradr is a cloud-based system for automatically building, testing, and grading student solutions to class assignments.
+The ultimate end goal of Gradr is to be used in MOOC-like settings, where it acts as a student submission system, an automated feedback generator, and an automated grader.
+
+The goals of Gradr bring up a number of technical challenges relating to scalability.
+Not only do the number of submissions become large in this setting, erratic usage patterns are a problem (e.g., many submissions just before a deadline).
+For this reason, Gradr must be designed in a way which is not only scalable (for the overall load), but elastic --- we should be able to dynamically add and remove system resources as needed.
+
 \section{System Overview}
+Gradr is implemented as a distributed system with multiple components, which allows for concerns to be separated out and for horizontal scaling to be inserted at key points.
+Where possible, we have used components from elsewhere which satisfy our needs.
+A description of the different components in Gradr follows:
+
+\begin{description}
+  \item[GitHub~\cite{github}] \hfill \\
+    A publicly-available hosting service for code repositories, focused around the \texttt{git}~\cite{git} revision control system.
+    GitHub stores student solutions, lifting the burden of code storage off of Gradr.
+    GitHub also informs the rest of the Gradr system whenever code is submitted (via a typical \texttt{push}), triggering downstream building to occur.
+
+  \item[Postgres~\cite{postgres}] \hfill \\
+    A popular relational database engine, which serves to store persistent information.
+    Postgres also facilitates communication between different components of Gradr, as it stores globally synchronized state.
+
+  \item[Notification Listener] \hfill \\
+    A custom component which listens for \texttt{push} notifications from GitHub via a webhook~\cite{github_webhook}.
+    Whenever a student performs a \texttt{push}, GitHub performs a standard POST request to this service, providing:
+    \begin{itemize}
+      \item The unique GitHub username of the student performing the \texttt{push} (which is ultimately mapped back to a unique username in Gradr)
+      \item The name of the repository the student \texttt{push}ed to (which is ultimately mapped back to a unique assignment identifier in Gradr)
+      \item The branch on which the \texttt{push} occurred
+    \end{itemize}
+    The above information is put into the Postgres database, and is marked as pending for downstream processing.
+
+  \item[Worker] \hfill \\
+    A custom component which regularly polls the Postgres database, looking for student submissions which are marked as pending.
+    The worker will first select a pending entry, and mark it as being processed.
+    The worker will then download the submission from GitHub, compile it, run tests, and put the test results pack into the Postgres database, finally marking the entry as complete.
+    Crucial to Gradr's design is the fact that there can exist any number of worker components at any time.
+
+  \item[Frontend] \hfill \\
+    A custom web application which students and instructors can use to view feedback on their submissions, which was derived from workers.
+    Much like workers, there can exist multiple frontend components at any time.
+\end{description}
+
+
 \section{Load Testing}
 \subsection{Experimental Setup}
 \subsection{Results and Discussion}
+\section{Possible Improvements}
+\subsection{Frontend}
+Put it behind a load balancer.
+
+TODO: actually describe this.
+\subsection{Backend}
+\subsubsection{Notification Listener}
+Make multithreaded, put behind a load balancer.
+
+TODO: actually describe this.
+\subsubsection{Worker}
+If a worker fails, it can leave the system in an inconsistent state, where a submission is marked as submitted but is never built.
+This can be addressed by using a fault-tolerant queue like SQS~\cite{sqs} for communication between the notification listener and workers.
+
+TODO: actually describe this.
+\subsubsection{Postgres}
+Read replications.
+
+TODO: actually describe this.
+
+\subsubsection{Auxilliary Storage for Results}
+Results can be huge, and are stored in Postgres right now for simplicity.
+These could be put into an auxilliary, eventually consistent data storage if downloading results from Postgres becomes a burden.
+
+TODO: actually describe this.
+
 \section{On the Usage of the Rust Programming Language}
 The entire backend is implemented in the Rust programming language~\cite{rust}.
 
